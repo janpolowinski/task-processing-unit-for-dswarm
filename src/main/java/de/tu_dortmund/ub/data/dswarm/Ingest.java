@@ -61,7 +61,6 @@ import org.apache.log4j.PropertyConfigurator;
 public class Ingest implements Callable<String> {
 
 	public static final String UUID_IDENTIFIER              = "uuid";
-	public static final String ENGINE_DSWARM_API_IDENTIFIER = "engine.dswarm.api";
 	public static final String DATA_ENDPOINT                = "data";
 	public static final String DATAMODELS_ENDPOINT          = DATA_ENDPOINT + "models";
 	public static final String SLASH                        = "/";
@@ -76,17 +75,27 @@ public class Ingest implements Callable<String> {
 	public static final String DELTA_UPDATE_FORMAT_IDENTIFIER = "delta";
 	public static final String EQUALS = "=";
 	public static final String QUESTION_MARK = "?";
+	public static final String AMBERSENT = "&";
+	public static final String ENABLE_VERSIONING_IDENTIFIER = "enableVersioning";
+	public static final String FALSE = "false";
 	private final Properties config;
 	private final Logger     logger;
 
 	private final String resource;
+	private final String dataModelID;
+	private final String resourceID;
+	private final String projectName;
 	private final int    cnt;
 
-	public Ingest(final Properties config, final Logger logger, final String resource, final int cnt) {
+	public Ingest(final Properties config, final Logger logger, final String resource, final String dataModelID, final String resourceID,
+			final String projectName, final int cnt) {
 
 		this.config = config;
 		this.logger = logger;
 		this.resource = resource;
+		this.dataModelID = dataModelID;
+		this.resourceID = resourceID;
+		this.projectName = projectName;
 		this.cnt = cnt;
 	}
 
@@ -97,26 +106,28 @@ public class Ingest implements Callable<String> {
 		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
-		final String engineDswarmAPI = config.getProperty(ENGINE_DSWARM_API_IDENTIFIER);
+		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
 		logger.info(String.format("[%s] Starting 'Ingest (Task)' ...", serviceName));
 
 		// init IDs of the prototype project
-		final String dataModelID = config.getProperty(TPUStatics.PROTOTYPE_DATA_MODEL_ID_IDENTIFIER);
+		// final String dataModelID = config.getProperty(TPUStatics.PROTOTYPE_DATA_MODEL_ID_IDENTIFIER);
+		final String dataModelID = this.dataModelID;
 		//        String projectID = config.getProperty("prototype.projectID");
 		//        String outputDataModelID = config.getProperty("prototype.outputDataModelID"); // Internal Data Model BiboDocument
 		//      String updateResourceID = config.getProperty("prototype.resourceID"); // the resource ID to update for each uploaded file
 		// use the projects resource as the update-resource for now:
-		String updateResourceID = null;
-		try {
-			updateResourceID = getDataResourceID(dataModelID, serviceName, engineDswarmAPI);
-		} catch (final Exception e1) {
-
-			logger.error("something went wrong", e1);
-			e1.printStackTrace();
-
-			return null;
-		}
+		//		String updateResourceID = null;
+		//		try {
+		//			updateResourceID = getDataResourceID(dataModelID, serviceName, engineDswarmAPI);
+		//		} catch (final Exception e1) {
+		//
+		//			logger.error("something went wrong", e1);
+		//			e1.printStackTrace();
+		//
+		//			return null;
+		//		}
+		final String updateResourceID = resourceID;
 
 		// init process values
 		final String message = null;
@@ -125,7 +136,7 @@ public class Ingest implements Callable<String> {
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
 			final String name = String.format("resource for project '%s'", resource);
-			final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
+			//final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
 			final String description = String.format("'%s' - case %d", projectName, cnt);
 			final String inputResourceJson = uploadFileAndUpdateResource(updateResourceID, resource, name,
 					description, serviceName, engineDswarmAPI);
@@ -149,7 +160,7 @@ public class Ingest implements Callable<String> {
 
 				// we don't need to transform after each ingest of a slice of records,
 				// so transform and export will be done separately
-				logger.info(String.format("[%s] (Note: Only ingest, but no trans" + FORMAT_IDENTIFIER + "ion or export done.)", serviceName));
+				logger.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
 			}
 
 			// no need to clean up resources or datamodels anymore
@@ -174,9 +185,10 @@ public class Ingest implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 			// Update the existing input Data Model (we are simply using the example data model here ... TODO !)
-			// note format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
+			// note: format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
+			// note: enableVersioning=false to speed up ingest (however this requires unique resources)
 			final String uri = engineDswarmAPI + DATAMODELS_ENDPOINT + SLASH + inputDataModelID + SLASH + DATA_ENDPOINT + QUESTION_MARK + FORMAT_IDENTIFIER
-					+ EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER;
+					+ EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + EQUALS + FALSE;
 			final HttpPost httpPost = new HttpPost(uri);
 
 			logger.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
@@ -299,7 +311,7 @@ public class Ingest implements Callable<String> {
 
 			httpPut.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] " + "request : %s", serviceName, httpPut.getRequestLine()));
+			logger.info(String.format("[%s] request : %s", serviceName, httpPut.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPut)) {
 

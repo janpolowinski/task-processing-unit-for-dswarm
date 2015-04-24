@@ -24,15 +24,21 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
 import java.io.*;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.*;
+
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
 
 /**
  * Task Processing Unit for d:swarm
@@ -43,10 +49,10 @@ import java.util.concurrent.*;
  */
 public class TaskProcessingUnit {
 
-	private static final String CONFIG_PROPERTIES_FILE_NAME = "config.properties";
-	private static final String     CONF_FOLDER_NAME = "conf";
-	public static final String UTF_8 = "UTF-8";
-	private static Properties config = new Properties();
+	private static final String     CONFIG_PROPERTIES_FILE_NAME = "config.properties";
+	private static final String     CONF_FOLDER_NAME            = "conf";
+	public static final  String     UTF_8                       = "UTF-8";
+	private static       Properties config                      = new Properties();
 
 	private static Logger logger = Logger.getLogger(TaskProcessingUnit.class.getName());
 
@@ -113,8 +119,38 @@ public class TaskProcessingUnit {
 		// Init time counter
 		final long global = System.currentTimeMillis();
 
+		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
+
+		final String initResultJSONString = executeInit(serviceName, engineThreads);
+
+		if(initResultJSONString == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
+		final JsonObject initResultJSON = initResultJsonReader.readObject();
+
+		if(initResultJSON == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		final String dataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
+		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+
+		final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
+
 		// run ThreadPool
-		executeIngests(files, serviceName);
+		executeIngests(files, dataModelID, resourceID, projectName, serviceName, engineThreads);
 		//        executeTasks(files);
 
 		final String tasksExecutedMessage = String
@@ -124,7 +160,51 @@ public class TaskProcessingUnit {
 		System.out.println(tasksExecutedMessage);
 	}
 
-	private static void executeIngests(final String[] files, final String serviceName) throws Exception {
+	private static String executeInit(final String serviceName, final Integer engineThreads) throws Exception {
+
+		// create job
+		final int cnt = 0;
+		Callable<String> initTask = new Init(config, logger, cnt);
+
+		// work on jobs
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<Runnable>());
+
+		try {
+
+			final List<Callable<String>> tasks = new LinkedList<>();
+			tasks.add(initTask);
+
+			final List<Future<String>> futureList = pool.invokeAll(tasks);
+			final Iterator<Future<String>> iterator = futureList.iterator();
+
+			if (iterator.hasNext()) {
+
+				final Future<String> f = iterator.next();
+
+				final String initResult = f.get();
+
+				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
+
+				logger.info(message1);
+				System.out.println(message1);
+
+				return initResult;
+			}
+
+			pool.shutdown();
+
+		} catch (final InterruptedException | ExecutionException e) {
+
+			logger.error("something went wrong", e);
+			e.printStackTrace();
+
+		}
+
+		return null;
+	}
+
+	private static void executeIngests(final String[] files, final String dataModelID, final String resourceID, final String projectName, final String serviceName, final Integer engineThreads) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
@@ -133,12 +213,12 @@ public class TaskProcessingUnit {
 		for (final String file : files) {
 
 			cnt++;
-			filesToPush.add(new Ingest(config, logger, file, cnt));
+			filesToPush.add(new Ingest(config, logger, file, dataModelID, resourceID, projectName, cnt));
 		}
 
 		// work on jobs
-		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
-		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<Runnable>());
 
 		try {
 
@@ -152,7 +232,6 @@ public class TaskProcessingUnit {
 
 				logger.info(message1);
 				System.out.println(message1);
-
 			}
 
 			pool.shutdown();
@@ -165,7 +244,7 @@ public class TaskProcessingUnit {
 		}
 	}
 
-	private static void executeTasks(String[] files) throws Exception {
+	private static void executeTasks(String[] files, final Integer engineThreads) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
@@ -178,8 +257,8 @@ public class TaskProcessingUnit {
 		}
 
 		// work on jobs
-		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
-		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<Runnable>());
 
 		try {
 
