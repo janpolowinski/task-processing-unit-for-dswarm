@@ -72,6 +72,10 @@ public class Ingest implements Callable<String> {
 	public static final String NAME_IDENTIFIER = "name";
 	public static final String DESCRIPTION_IDENTIFIER = "description";
 	public static final String UTF_8 = "UTF-8";
+	public static final String FORMAT_IDENTIFIER = "format";
+	public static final String DELTA_UPDATE_FORMAT_IDENTIFIER = "delta";
+	public static final String EQUALS = "=";
+	public static final String QUESTION_MARK = "?";
 	private final Properties config;
 	private final Logger     logger;
 
@@ -145,7 +149,7 @@ public class Ingest implements Callable<String> {
 
 				// we don't need to transform after each ingest of a slice of records,
 				// so transform and export will be done separately
-				logger.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+				logger.info(String.format("[%s] (Note: Only ingest, but no trans" + FORMAT_IDENTIFIER + "ion or export done.)", serviceName));
 			}
 
 			// no need to clean up resources or datamodels anymore
@@ -170,7 +174,9 @@ public class Ingest implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 			// Update the existing input Data Model (we are simply using the example data model here ... TODO !)
-			final String uri = engineDswarmAPI + DATAMODELS_ENDPOINT + SLASH + inputDataModelID + SLASH + DATA_ENDPOINT;
+			// note format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
+			final String uri = engineDswarmAPI + DATAMODELS_ENDPOINT + SLASH + inputDataModelID + SLASH + DATA_ENDPOINT + QUESTION_MARK + FORMAT_IDENTIFIER
+					+ EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER;
 			final HttpPost httpPost = new HttpPost(uri);
 
 			logger.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
@@ -286,9 +292,9 @@ public class Ingest implements Callable<String> {
 			final StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
 
 			final HttpEntity reqEntity = MultipartEntityBuilder.create()
-					.addPart(FILE_IDENTIFIER, fileBody)
 					.addPart(NAME_IDENTIFIER, stringBodyForName)
 					.addPart(DESCRIPTION_IDENTIFIER, stringBodyForDescription)
+					.addPart(FILE_IDENTIFIER, fileBody)
 					.build();
 
 			httpPut.setEntity(reqEntity);
