@@ -83,7 +83,7 @@ public class Task implements Callable<String> {
         this.cnt = cnt;
     }
 
-    @Override
+//    @Override
     public String call() {
 
         // init logger
