@@ -43,152 +43,163 @@ import java.util.concurrent.*;
  */
 public class TaskProcessingUnit {
 
-    private static Properties config = new Properties();
+	private static final String CONFIG_PROPERTIES_FILE_NAME = "config.properties";
+	private static final String     CONF_FOLDER_NAME = "conf";
+	public static final String UTF_8 = "UTF-8";
+	private static Properties config = new Properties();
 
-    private static Logger logger = Logger.getLogger(TaskProcessingUnit.class.getName());
+	private static Logger logger = Logger.getLogger(TaskProcessingUnit.class.getName());
 
-    public static void main(String[] args) throws Exception {
+	public static void main(final String[] args) throws Exception {
 
-        // config
-        String conffile = "conf" + File.separatorChar + "config.properties";
+		// config
+		String conffile = CONF_FOLDER_NAME + File.separatorChar + CONFIG_PROPERTIES_FILE_NAME;
 
-        // read program parameters
-        if (args.length > 0) {
+		// read program parameters
+		if (args.length > 0) {
 
-            for (int i = 0; i < args.length; i++) {
+			for (final String arg : args) {
 
-                System.out.println("arg = " + args[i]);
+				System.out.println("arg = " + arg);
 
-                if (args[i].startsWith("-conf=")) {
-                    conffile = args[i].split("=")[1];
-                }
-            }
-        }
+				if (arg.startsWith("-conf=")) {
 
-        // Init properties
-        try {
-            InputStream inputStream = new FileInputStream(conffile);
+					conffile = arg.split("=")[1];
+				}
+			}
+		}
 
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
+		// Init properties
+		try {
 
-                try {
-                    config.load(reader);
+			try (final InputStream inputStream = new FileInputStream(conffile)) {
 
-                } finally {
-                    reader.close();
-                }
-            }
-            finally {
-                inputStream.close();
-            }
-        }
-        catch (IOException e) {
-            System.out.println("FATAL ERROR: Could not read '" + conffile + "'!");
-        }
+				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, UTF_8))) {
 
-        // init logger
-        PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
+					config.load(reader);
+				}
+			}
+		} catch (final IOException e) {
 
-        logger.info("[" + config.getProperty("service.name") + "] " + "Starting 'Task Processing Unit' ...");
-        logger.info("[" + config.getProperty("service.name") + "] " + "conf-file = " + conffile);
-        logger.info("[" + config.getProperty("service.name") + "] " + "log4j-conf-file = " + config.getProperty("service.log4j-conf"));
-        System.out.println("[" + config.getProperty("service.name") + "] " + "Starting 'Task Processing Unit' ...");
-        System.out.println("[" + config.getProperty("service.name") + "] " + "conf-file = " + conffile);
-        System.out.println("[" + config.getProperty("service.name") + "] " + "log4j-conf-file = " + config.getProperty("service.log4j-conf"));
+			logger.error("something went wrong", e);
+			System.out.println(String.format("FATAL ERROR: Could not read '%s'!", conffile));
+		}
 
-        String[] files = new File(config.getProperty("resource.watchfolder")).list();
-        logger.info("[" + config.getProperty("service.name") + "] " + "Files in " + config.getProperty("resource.watchfolder"));
-        logger.info(Arrays.toString(files));
-        System.out.println("[" + config.getProperty("service.name") + "] " + "Files in " + config.getProperty("resource.watchfolder"));
-        System.out.println(Arrays.toString(files));
+		// init logger
+		PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
 
-        // Init time counter
-        long global = System.currentTimeMillis();
+		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
-        // run ThreadPool
-        executeIngests(files);
-//        executeTasks(files);
+		logger.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
+		logger.info(String.format("[%s] conf-file = %s", serviceName, conffile));
 
-        logger.info("[" + config.getProperty("service.name") + "] " + "d:swarm tasks executed. (Processing time: " + ((System.currentTimeMillis() - global) / 1000) + " s)");
-        System.out.println("[" + config.getProperty("service.name") + "] " + "d:swarm tasks executed. (Processing time: " + ((System.currentTimeMillis() - global) / 1000) + " s)");
-    }
+		final String log4jConfFile = config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER);
 
-    private static void executeIngests(String[] files) throws Exception {
+		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
+		System.out.println(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
+		System.out.println(String.format("[%s] conf-file = %s", serviceName, conffile));
+		System.out.println(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
 
-        // create job list
-        LinkedList<Callable<String>> filesToPush = new LinkedList<Callable<String>>();
+		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
+		final String[] files = new File(resourceWatchFolder).list();
 
-        int cnt = 0;
-        for (String file : files) {
+		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
-            cnt++;
-            filesToPush.add(new Ingest(config, logger, file, cnt));
-        }
+		logger.info(filesMessage);
+		logger.info(Arrays.toString(files));
+		System.out.println(filesMessage);
+		System.out.println(Arrays.toString(files));
 
-        // work on jobs
-        ThreadPoolExecutor pool = new ThreadPoolExecutor(Integer.parseInt(config.getProperty("engine.threads")), Integer.parseInt(config.getProperty("engine.threads")), 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+		// Init time counter
+		final long global = System.currentTimeMillis();
 
-        try {
+		// run ThreadPool
+		executeIngests(files, serviceName);
+		//        executeTasks(files);
 
-            List<Future<String>> futureList = pool.invokeAll(filesToPush);
+		final String tasksExecutedMessage = String
+				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
+						(System.currentTimeMillis() - global) / 1000));
+		logger.info(tasksExecutedMessage);
+		System.out.println(tasksExecutedMessage);
+	}
 
-            for (Future<String> f : futureList) {
+	private static void executeIngests(final String[] files, final String serviceName) throws Exception {
 
-                String message = f.get();
+		// create job list
+		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
 
-                logger.info("[" + config.getProperty("service.name") + "] " + message);
-                System.out.println("[" + config.getProperty("service.name") + "] " + message);
+		int cnt = 0;
+		for (final String file : files) {
 
-            }
+			cnt++;
+			filesToPush.add(new Ingest(config, logger, file, cnt));
+		}
 
-            pool.shutdown();
+		// work on jobs
+		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
 
-        } catch (InterruptedException | ExecutionException e) {
+		try {
 
-            e.printStackTrace();
+			final List<Future<String>> futureList = pool.invokeAll(filesToPush);
 
-        }
-    }
+			for (final Future<String> f : futureList) {
+
+				final String message = f.get();
+
+				final String message1 = String.format("[%s] %s", serviceName, message);
+
+				logger.info(message1);
+				System.out.println(message1);
+
+			}
+
+			pool.shutdown();
+
+		} catch (final InterruptedException | ExecutionException e) {
+
+			logger.error("something went wrong", e);
+			e.printStackTrace();
+
+		}
+	}
 
 	private static void executeTasks(String[] files) throws Exception {
-	
-	    // create job list
-	    LinkedList<Callable<String>> filesToPush = new LinkedList<Callable<String>>();
-	
-	    int cnt = 0;
-	    for (String file : files) {
-	
-	        cnt++;
-	        filesToPush.add(new Task(config, logger, file, cnt));
-	    }
-	
-	    // work on jobs
-	    ThreadPoolExecutor pool = new ThreadPoolExecutor(Integer.parseInt(config.getProperty("engine.threads")), Integer.parseInt(config.getProperty("engine.threads")), 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
-	
-	    try {
-	
-	        List<Future<String>> futureList = pool.invokeAll(filesToPush);
-	
-	        for (Future<String> f : futureList) {
-	
-	            String message = f.get();
-	
-	            logger.info("[" + config.getProperty("service.name") + "] " + message);
-	            System.out.println("[" + config.getProperty("service.name") + "] " + message);
-	
-	        }
-	
-	        pool.shutdown();
-	
-	    } catch (InterruptedException e) {
-	
-	        e.printStackTrace();
-	
-	    } catch (ExecutionException e) {
-	
-	        e.printStackTrace();
-	    }
+
+		// create job list
+		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
+
+		int cnt = 0;
+		for (final String file : files) {
+
+			cnt++;
+			filesToPush.add(new Task(config, logger, file, cnt));
+		}
+
+		// work on jobs
+		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
+
+		try {
+
+			final List<Future<String>> futureList = pool.invokeAll(filesToPush);
+
+			for (final Future<String> f : futureList) {
+
+				final String message = f.get();
+
+				logger.info("[" + config.getProperty("service.name") + "] " + message);
+				System.out.println("[" + config.getProperty("service.name") + "] " + message);
+
+			}
+
+			pool.shutdown();
+
+		} catch (final InterruptedException | ExecutionException e) {
+
+			e.printStackTrace();
+		}
 	}
 
 }
