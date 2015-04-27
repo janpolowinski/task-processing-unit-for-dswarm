@@ -108,7 +108,7 @@ public class Ingest implements Callable<String> {
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Ingest (Task)' ...", serviceName));
+		logger.info(String.format("[%s] Starting 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
 		// init IDs of the prototype project
 		// final String dataModelID = config.getProperty(TPUStatics.PROTOTYPE_DATA_MODEL_ID_IDENTIFIER);
@@ -170,6 +170,8 @@ public class Ingest implements Callable<String> {
 			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
 			e.printStackTrace();
 		}
+
+		logger.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
 		return message;
 	}
