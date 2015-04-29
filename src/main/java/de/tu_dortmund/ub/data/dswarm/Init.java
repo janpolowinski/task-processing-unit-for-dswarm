@@ -70,15 +70,19 @@ public class Init implements Callable<String> {
 	public static final String DATAMODELS_ENDPOINT            = "datamodels";
 	public static final String CONFIGURATIONS_ENDPOINT        = "configurations";
 	public static final String RESOURCES_ENDPOINT             = "resources";
+	public static final String MAINTAIN_ENDPOINT             = "maintain";
+	public static final String SCHEMA_INDICES_ENDPOINT             = "schemaindices";
+	public static final String SLASH                        = "/";
 	public static final String FILE_IDENTIFIER                = "file";
 	public static final String NAME_IDENTIFIER                = "name";
 	public static final String DESCRIPTION_IDENTIFIER         = "description";
 	public static final String UTF_8                          = "UTF-8";
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
 	public static final String DATA_RESOURCE_IDENTIFIER = "data_resource";
-	public static final String APPLICATION_JSON = "application/json";
-	public static final String DATA_MODEL_ID = "data_model_id";
-	public static final String RESOURCE_ID = "resource_id";
+	public static final String APPLICATION_JSON_MIMETYPE = "application/json";
+	public static final String TEXT_PLAIN_MIMETYPE       = "text/plain";
+	public static final String DATA_MODEL_ID             = "data_model_id";
+	public static final String RESOURCE_ID               = "resource_id";
 
 	private final Properties config;
 	private final Logger     logger;
@@ -107,6 +111,9 @@ public class Init implements Callable<String> {
 		final String resource = config.getProperty(TPUStatics.INIT_RESOURCE_NAME_IDENTIFIER);
 
 		try {
+
+			initSchemaIndices(serviceName);
+
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
 			final String name = String.format("resource for project '%s'", resource);
@@ -158,7 +165,8 @@ public class Init implements Callable<String> {
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription, serviceName,
+			final String dataModelJSONString = initSchemaIndices(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription,
+					serviceName,
 					engineDswarmAPI);
 
 			if (dataModelJSONString == null) {
@@ -290,7 +298,7 @@ public class Init implements Callable<String> {
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + CONFIGURATIONS_ENDPOINT);
 			final String configurationJSONString = readFile(filename, Charsets.UTF_8);
 
-			final StringEntity reqEntity = new StringEntity(configurationJSONString, ContentType.create(APPLICATION_JSON, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(configurationJSONString, ContentType.create(APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			httpPost.setEntity(reqEntity);
 
@@ -340,7 +348,8 @@ public class Init implements Callable<String> {
 	 * @return responseJson
 	 * @throws Exception
 	 */
-	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description, final String serviceName,
+	private String initSchemaIndices(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
+			final String serviceName,
 			final String engineDswarmAPI) throws Exception {
 
 
@@ -361,7 +370,7 @@ public class Init implements Callable<String> {
 			jp.flush();
 			jp.close();
 
-			final StringEntity reqEntity = new StringEntity(stringWriter.toString(), ContentType.create(APPLICATION_JSON, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(stringWriter.toString(), ContentType.create(APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			stringWriter.flush();
 			stringWriter.close();
@@ -390,6 +399,60 @@ public class Init implements Callable<String> {
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
+					}
+					default: {
+
+						logger.error(message);
+					}
+				}
+
+				EntityUtils.consume(httpEntity);
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * inits schema indices or ensures that they are there
+	 *
+	 * @param serviceName
+	 * @throws Exception
+	 */
+	private String initSchemaIndices(final String serviceName) throws Exception {
+
+
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+
+			final String engineDswarmGraphAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_GRAPH_API_IDENTIFIER);
+
+			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + SLASH + SCHEMA_INDICES_ENDPOINT);
+			final StringEntity reqEntity = new StringEntity("", ContentType.create(TEXT_PLAIN_MIMETYPE, Consts.UTF_8));
+
+			httpPost.setEntity(reqEntity);
+
+			logger.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
+
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+				final HttpEntity httpEntity = httpResponse.getEntity();
+
+				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						.getReasonPhrase());
+
+				switch (statusCode) {
+
+					case 200: {
+
+						logger.info(message);
+						final StringWriter writer = new StringWriter();
+						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						final String response = writer.toString();
+
+						logger.info(String.format("[%s] response : '%s'", serviceName, response));
+
+						return response;
 					}
 					default: {
 

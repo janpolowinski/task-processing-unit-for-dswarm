@@ -14,4 +14,5 @@ public final class TPUStatics {
 	public static final String CONFIGURATION_NAME_IDENTIFIER = "configuration.name";
 	public static final String INIT_RESOURCE_NAME_IDENTIFIER = "resource.initresource";
 	public static final String ENGINE_DSWARM_API_IDENTIFIER = "engine.dswarm.api";
+	public static final String ENGINE_DSWARM_GRAPH_API_IDENTIFIER = "engine.dswarm.api";
 }
