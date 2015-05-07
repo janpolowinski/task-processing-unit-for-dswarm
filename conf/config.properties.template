@@ -7,6 +7,10 @@ project.name=LokSys
 # resources
 resource.watchfolder=data/LokSys/resources
 resource.preprocessing=false
+resource.initresource=/home/jan/Desktop/example-data/oai-pmh-marc21-400t-records/split-10-2/test_export_11001.xml
+
+configuration.name=/home/jan/git/task-processing-unit-for-dswarm/target/conf/oai-pmh-marc-xml-configuration.json
+
 
 # preprocessing for xml files
 preprocessing.xslt=xslt/cdata.xsl
@@ -31,6 +35,7 @@ results.rdf.graph=http://data.ub.tu-dortmund.de/clossed/LMF/context/crossref
 ########################
 engine.threads=1
 engine.dswarm.api=http://129.217.132.83:8080/dmp/
+engine.dswarm.graph.api=http://localhost:7474/graph/
 
 ######################
 # Service Parameters #
