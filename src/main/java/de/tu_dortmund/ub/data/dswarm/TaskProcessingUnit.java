@@ -152,6 +152,7 @@ public class TaskProcessingUnit {
 		// run ThreadPool
 		executeIngests(files, dataModelID, resourceID, projectName, serviceName, engineThreads);
 		//        executeTasks(files);
+		executeExport(engineThreads);
 
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
@@ -229,6 +230,41 @@ public class TaskProcessingUnit {
 				final String message = f.get();
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
+
+				logger.info(message1);
+				System.out.println(message1);
+			}
+
+			pool.shutdown();
+
+		} catch (final InterruptedException | ExecutionException e) {
+
+			logger.error("something went wrong", e);
+			e.printStackTrace();
+
+		}
+	}
+	
+	
+	private static void executeExport(final Integer engineThreads) throws Exception {
+
+		// create job list
+		final LinkedList<Callable<String>> exports = new LinkedList<>();
+		exports.add(new Export(config, logger));
+
+		// work on jobs
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<Runnable>());
+
+		try {
+
+			final List<Future<String>> futureList = pool.invokeAll(exports);
+
+			for (final Future<String> f : futureList) {
+
+				final String message = f.get();
+
+				final String message1 = String.format("[%s] %s", config.getProperty("service.name"), message);
 
 				logger.info(message1);
 				System.out.println(message1);
