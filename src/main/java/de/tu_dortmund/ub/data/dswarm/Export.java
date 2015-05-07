@@ -78,13 +78,17 @@ public class Export implements Callable<String> {
         String message = null;
 
         try {
+        	
+        	if (Boolean.parseBoolean(config.getProperty("export.do"))) {
 
-            if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
-            	
-                // export and save to results folder
-                String xmlResponse = exportDataModel(outputDataModelID);
-                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + "export-of-" + dataModelID + "." + ".xml"), xmlResponse);
-            }
+	            if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
+	            	
+	                // export and save to results folder
+	                String xmlResponse = exportDataModel(outputDataModelID);
+	                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + "export-of-" + dataModelID + "." + ".xml"), xmlResponse);
+	            }
+            
+        	}
         }
         catch (Exception e) {
 

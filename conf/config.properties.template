@@ -21,6 +21,12 @@ prototype.dataModelID=bbd368e8-b75c-0e64-b96a-ab812a700b4f
 prototype.projectID=819f2f6e-98ed-90e2-372e-71a0a1eec786
 prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
 
+# transform
+transform.do=true
+
+#export
+export.do=true
+
 # results
 results.persistInDMP=false
 results.persistInFolder=true
