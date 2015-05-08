@@ -79,21 +79,9 @@ public class Export implements Callable<String> {
 		try {
 
 			// export and save to results folder
-			final InputStream xmlResponse = exportDataModel(exportDataModelID, serviceName);
+			exportDataModel(exportDataModelID, serviceName);
 
-			final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
-			final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
 
-			if (persistInFolder) {
-
-				final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
-				final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
-				final BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName));
-
-				IOUtils.copy(xmlResponse, outputStream);
-				xmlResponse.close();
-				outputStream.close();
-			}
 		} catch (final Exception e) {
 
 			logger.error(String.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
@@ -110,7 +98,7 @@ public class Export implements Callable<String> {
 	 * @return xml input stream
 	 * @throws Exception
 	 */
-	private InputStream exportDataModel(final String dataModelID, final String serviceName) throws Exception {
+	private void exportDataModel(final String dataModelID, final String serviceName) throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
@@ -124,7 +112,7 @@ public class Export implements Callable<String> {
 			//			httpGet.setHeader(name, value);
 
 			logger.info(String.format("[%s] dataModelID : %s", serviceName, dataModelID));
-			logger.info(String.format("[%s] request : %,s", serviceName, httpGet.getRequestLine()));
+			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
@@ -144,7 +132,21 @@ public class Export implements Callable<String> {
 					}
 				}
 
-				return httpResponse.getEntity().getContent();
+				final InputStream xmlResponse = httpResponse.getEntity().getContent();
+
+				final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
+				final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
+
+				if (persistInFolder) {
+
+					final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
+					final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
+					final BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName));
+
+					IOUtils.copy(xmlResponse, outputStream);
+					xmlResponse.close();
+					outputStream.close();
+				}
 			}
 		}
 	}
