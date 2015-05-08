@@ -24,20 +24,16 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.StringWriter;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
-import org.apache.http.client.methods.HttpGet;
-
-import org.apache.http.Consts;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.FileUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.log4j.Logger;
@@ -52,104 +48,104 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Export implements Callable<String> {
 
-    private Properties config = null;
-    private Logger logger = null;
+	public static final String EXPORT_IDENTIFIER        = "export";
+	public static final String EXPORT_FILE_NAME_PREFIX  = "export-of-";
+	public static final String DOT                      = ".";
+	public static final String XML_FILE_ENDING          = "xml";
+	private final String     exportDataModelID;
+	private final Properties config;
+	private final Logger     logger;
 
-    public Export(Properties config, Logger logger) {
+	public Export(final String exportDataModelIDArg, final Properties config, final Logger logger) {
 
-        this.config = config;
-        this.logger = logger;
-    }
+		exportDataModelID = exportDataModelIDArg;
+		this.config = config;
+		this.logger = logger;
+	}
 
-//    @Override
-    public String call() {
+	//    @Override
+	public String call() {
 
-        // init logger
-        PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
+		// init logger
+		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
 
-        logger.info("[" + config.getProperty("service.name") + "] " + "Starting 'XML-Export (Task)' ...");
+		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
-        // init IDs of the prototype project
-        String dataModelID = config.getProperty("prototype.dataModelID");
-        String projectID = config.getProperty("prototype.projectID");
-        String outputDataModelID = config.getProperty("prototype.outputDataModelID");
+		logger.info(String.format("[%s] Starting 'XML-Export (Task)' ...", serviceName));
 
-        // init process values
-        String message = null;
+		// init process values
+		String message = null;
 
-        try {
-        	
-        	if (Boolean.parseBoolean(config.getProperty("export.do"))) {
+		try {
 
-	            if (Boolean.parseBoolean(config.getProperty("results.persistInFolder"))) {
-	            	
-	                // export and save to results folder
-	                String xmlResponse = exportDataModel(outputDataModelID);
-	                FileUtils.writeStringToFile(new File(config.getProperty("results.folder") + File.separatorChar + "export-of-" + dataModelID + "." + ".xml"), xmlResponse);
-	            }
-            
-        	}
-        }
-        catch (Exception e) {
+			// export and save to results folder
+			final InputStream xmlResponse = exportDataModel(exportDataModelID, serviceName);
 
-            logger.error("[" + config.getProperty("service.name") + "] Exporting and saving datamodel '" + dataModelID + "' failed with a " + e.getClass().getSimpleName());
-            e.printStackTrace();
-        }
+			final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
+			final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
 
-        return message;
-    }
+			if (persistInFolder) {
 
-    /**
-     * export the data model with the given ID as XML
-     *
-     * @param dataModelID
-     * @return xml string
-     * @throws Exception
-     */
-    private String exportDataModel(String dataModelID) throws Exception {
+				final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
+				final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
+				final BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName));
 
-        CloseableHttpClient httpclient = HttpClients.createDefault();
-        CloseableHttpResponse httpResponse;
+				IOUtils.copy(xmlResponse, outputStream);
+				xmlResponse.close();
+				outputStream.close();
+			}
+		} catch (final Exception e) {
 
-        try {
-        	
-            HttpGet httpGet = new HttpGet(config.getProperty("engine.dswarm.api") + "datamodels/" + dataModelID + "/export?format=application/xml");
-            
-//			httpGet.setHeader(name, value);
+			logger.error(String.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
+					.getSimpleName()), e);
+		}
 
-            logger.info("[" + config.getProperty("service.name") + "] dataModelID : " + dataModelID);
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpGet.getRequestLine());
+		return message;
+	}
 
-            httpResponse = httpclient.execute(httpGet);
+	/**
+	 * export the data model with the given ID as XML
+	 *
+	 * @param dataModelID
+	 * @return xml input stream
+	 * @throws Exception
+	 */
+	private InputStream exportDataModel(final String dataModelID, final String serviceName) throws Exception {
 
-            try {
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
+			final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-                switch (statusCode) {
+			final String uri =
+					engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID + APIStatics.SLASH + EXPORT_IDENTIFIER
+							+ APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER + APIStatics.EQUALS + APIStatics.APPLICATION_XML_MIMETYPE;
+			final HttpGet httpGet = new HttpGet(uri);
 
-                    case 200: {
+			//			httpGet.setHeader(name, value);
 
-                        logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
+			logger.info(String.format("[%s] dataModelID : %s", serviceName, dataModelID));
+			logger.info(String.format("[%s] request : %,s", serviceName, httpGet.getRequestLine()));
 
-                        break;
-                    }
-                    default: {
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
-                
-				final StringWriter writer = new StringWriter();
-				IOUtils.copy(httpResponse.getEntity().getContent(), writer, "UTF-8");
-				final String responseXML = writer.toString();
-				return responseXML;
-                
-            } finally {
-                httpResponse.close();
-            }
-        } finally {
-            httpclient.close();
-        }
-    }
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+				switch (statusCode) {
+
+					case 200: {
+
+						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+
+						break;
+					}
+					default: {
+
+						logger.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+					}
+				}
+
+				return httpResponse.getEntity().getContent();
+			}
+		}
+	}
 }

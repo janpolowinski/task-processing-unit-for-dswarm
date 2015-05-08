@@ -60,21 +60,11 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Ingest implements Callable<String> {
 
-	public static final String UUID_IDENTIFIER              = "uuid";
 	public static final String DATA_ENDPOINT                = "data";
-	public static final String DATAMODELS_ENDPOINT          = DATA_ENDPOINT + "models";
-	public static final String SLASH                        = "/";
 	public static final String CONFIGURATION_IDENTIFIER     = "configuration";
-	public static final String RESOURCES_ENDPOINT           = "resources";
-	public static final String RESOURCES_IDENTIFIER = RESOURCES_ENDPOINT;
+	public static final String RESOURCES_IDENTIFIER = "resources";
 	public static final String FILE_IDENTIFIER = "file";
-	public static final String NAME_IDENTIFIER = "name";
-	public static final String DESCRIPTION_IDENTIFIER = "description";
-	public static final String UTF_8 = "UTF-8";
-	public static final String FORMAT_IDENTIFIER = "format";
 	public static final String DELTA_UPDATE_FORMAT_IDENTIFIER = "delta";
-	public static final String EQUALS = "=";
-	public static final String QUESTION_MARK = "?";
 	public static final String AMBERSENT = "&";
 	public static final String ENABLE_VERSIONING_IDENTIFIER = "enableVersioning";
 	public static final String FALSE = "false";
@@ -149,8 +139,8 @@ public class Ingest implements Callable<String> {
 				return null;
 			}
 
-			jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, UTF_8));
-			final String inputResourceID = jsonReader.readObject().getString(UUID_IDENTIFIER);
+			jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
+			final String inputResourceID = jsonReader.readObject().getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			logger.info(String.format("[%s] inputResourceID = %s", serviceName, inputResourceID));
 
 			if (inputResourceID != null) {
@@ -189,8 +179,8 @@ public class Ingest implements Callable<String> {
 			// Update the existing input Data Model (we are simply using the example data model here ... TODO !)
 			// note: format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
 			// note: enableVersioning=false to speed up ingest (however this requires unique resources)
-			final String uri = engineDswarmAPI + DATAMODELS_ENDPOINT + SLASH + inputDataModelID + SLASH + DATA_ENDPOINT + QUESTION_MARK + FORMAT_IDENTIFIER
-					+ EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + EQUALS + FALSE;
+			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + inputDataModelID + APIStatics.SLASH + DATA_ENDPOINT + APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER
+					+ APIStatics.EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + APIStatics.EQUALS + FALSE;
 			final HttpPost httpPost = new HttpPost(uri);
 
 			logger.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
@@ -234,7 +224,7 @@ public class Ingest implements Callable<String> {
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			// Hole Mappings aus dem Projekt mit 'projectID'
-			final String uri = engineDswarmAPI + DATAMODELS_ENDPOINT + SLASH + dataModelID;
+			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID;
 			final HttpGet httpGet = new HttpGet(uri);
 
 			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
@@ -249,16 +239,18 @@ public class Ingest implements Callable<String> {
 					case 200: {
 
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
-						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, UTF_8));
+						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
 						final JsonObject jsonObject = jsonReader.readObject();
 						final JsonArray resources = jsonObject.getJsonObject(CONFIGURATION_IDENTIFIER).getJsonArray(RESOURCES_IDENTIFIER);
 
-						final String resourceID = resources.getJsonObject(0).getJsonString(UUID_IDENTIFIER).getString();
+						final String resourceID = resources.getJsonObject(0).getJsonString(DswarmBackendStatics.UUID_IDENTIFIER).getString();
 
 						logger.info(String.format("[%s] resourceID : %s", serviceName, resourceID));
 
@@ -298,7 +290,7 @@ public class Ingest implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-			final HttpPut httpPut = new HttpPut(engineDswarmAPI + RESOURCES_ENDPOINT + SLASH + resourceUUID);
+			final HttpPut httpPut = new HttpPut(engineDswarmAPI + DswarmBackendStatics.RESOURCES_ENDPOINT + APIStatics.SLASH + resourceUUID);
 
 			final File file1 = new File(completeFileName);
 			final FileBody fileBody = new FileBody(file1);
@@ -306,8 +298,8 @@ public class Ingest implements Callable<String> {
 			final StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
 
 			final HttpEntity reqEntity = MultipartEntityBuilder.create()
-					.addPart(NAME_IDENTIFIER, stringBodyForName)
-					.addPart(DESCRIPTION_IDENTIFIER, stringBodyForDescription)
+					.addPart(DswarmBackendStatics.NAME_IDENTIFIER, stringBodyForName)
+					.addPart(DswarmBackendStatics.DESCRIPTION_IDENTIFIER, stringBodyForDescription)
 					.addPart(FILE_IDENTIFIER, fileBody)
 					.build();
 
@@ -329,8 +321,10 @@ public class Ingest implements Callable<String> {
 
 						logger.info(message);
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 

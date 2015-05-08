@@ -66,20 +66,10 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Init implements Callable<String> {
 
-	public static final String UUID_IDENTIFIER                = "uuid";
-	public static final String DATAMODELS_ENDPOINT            = "datamodels";
-	public static final String CONFIGURATIONS_ENDPOINT        = "configurations";
-	public static final String RESOURCES_ENDPOINT             = "resources";
 	public static final String MAINTAIN_ENDPOINT             = "maintain";
 	public static final String SCHEMA_INDICES_ENDPOINT             = "schemaindices";
-	public static final String SLASH                        = "/";
 	public static final String FILE_IDENTIFIER                = "file";
-	public static final String NAME_IDENTIFIER                = "name";
-	public static final String DESCRIPTION_IDENTIFIER         = "description";
-	public static final String UTF_8                          = "UTF-8";
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
-	public static final String DATA_RESOURCE_IDENTIFIER = "data_resource";
-	public static final String APPLICATION_JSON_MIMETYPE = "application/json";
 	public static final String TEXT_PLAIN_MIMETYPE       = "text/plain";
 	public static final String DATA_MODEL_ID             = "data_model_id";
 	public static final String RESOURCE_ID               = "resource_id";
@@ -127,9 +117,9 @@ public class Init implements Callable<String> {
 				return null;
 			}
 
-			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, UTF_8));
+			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
 			final JsonObject inputResourceJSON = inputResourceJsonReader.readObject();
-			final String inputResourceID = inputResourceJSON.getString(UUID_IDENTIFIER);
+			final String inputResourceID = inputResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			logger.info(String.format("[%s] input resource id = %s", serviceName, inputResourceID));
 
 			if (inputResourceID == null) {
@@ -150,9 +140,9 @@ public class Init implements Callable<String> {
 				return null;
 			}
 
-			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, UTF_8));
+			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, APIStatics.UTF_8));
 			final JsonObject configurationJSON = configurationJsonReader.readObject();
-			final String configurationID = configurationJSON.getString(UUID_IDENTIFIER);
+			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			logger.info(String.format("[%s] configuration id = %s", serviceName, configurationID));
 
 			if (configurationID == null) {
@@ -176,9 +166,9 @@ public class Init implements Callable<String> {
 				return null;
 			}
 
-			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, UTF_8));
+			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
 			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
-			final String dataModelID = dataModelJSON.getString(UUID_IDENTIFIER);
+			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			logger.info(String.format("[%s] configuration id = %s", serviceName, dataModelID));
 
 			if (dataModelID == null) {
@@ -232,7 +222,7 @@ public class Init implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-			final HttpPost httpPost = new HttpPost(engineDswarmAPI + RESOURCES_ENDPOINT);
+			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.RESOURCES_ENDPOINT);
 
 			final File file1 = new File(filename);
 			final FileBody fileBody = new FileBody(file1);
@@ -240,8 +230,8 @@ public class Init implements Callable<String> {
 			final StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
 
 			final HttpEntity reqEntity = MultipartEntityBuilder.create()
-					.addPart(NAME_IDENTIFIER, stringBodyForName)
-					.addPart(DESCRIPTION_IDENTIFIER, stringBodyForDescription)
+					.addPart(DswarmBackendStatics.NAME_IDENTIFIER, stringBodyForName)
+					.addPart(DswarmBackendStatics.DESCRIPTION_IDENTIFIER, stringBodyForDescription)
 					.addPart(FILE_IDENTIFIER, fileBody)
 					.build();
 
@@ -263,8 +253,10 @@ public class Init implements Callable<String> {
 
 						logger.info(message);
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
@@ -295,10 +287,10 @@ public class Init implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-			final HttpPost httpPost = new HttpPost(engineDswarmAPI + CONFIGURATIONS_ENDPOINT);
+			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.CONFIGURATIONS_ENDPOINT);
 			final String configurationJSONString = readFile(filename, Charsets.UTF_8);
 
-			final StringEntity reqEntity = new StringEntity(configurationJSONString, ContentType.create(APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(configurationJSONString, ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			httpPost.setEntity(reqEntity);
 
@@ -318,8 +310,10 @@ public class Init implements Callable<String> {
 
 						logger.info(message);
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
@@ -355,22 +349,22 @@ public class Init implements Callable<String> {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DATAMODELS_ENDPOINT);
+			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT);
 
 			final StringWriter stringWriter = new StringWriter();
 			final JsonGenerator jp = Json.createGenerator(stringWriter);
 
 			jp.writeStartObject();
-			jp.write(NAME_IDENTIFIER, name);
-			jp.write(DESCRIPTION_IDENTIFIER, description);
+			jp.write(DswarmBackendStatics.NAME_IDENTIFIER, name);
+			jp.write(DswarmBackendStatics.DESCRIPTION_IDENTIFIER, description);
 			jp.write(CONFIGURATION_IDENTIFIER, configurationJSON);
-			jp.write(DATA_RESOURCE_IDENTIFIER, resourceJSON);
+			jp.write(DswarmBackendStatics.DATA_RESOURCE_IDENTIFIER, resourceJSON);
 			jp.writeEnd();
 
 			jp.flush();
 			jp.close();
 
-			final StringEntity reqEntity = new StringEntity(stringWriter.toString(), ContentType.create(APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(stringWriter.toString(), ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			stringWriter.flush();
 			stringWriter.close();
@@ -393,8 +387,10 @@ public class Init implements Callable<String> {
 
 						logger.info(message);
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
@@ -426,7 +422,7 @@ public class Init implements Callable<String> {
 
 			final String engineDswarmGraphAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_GRAPH_API_IDENTIFIER);
 
-			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + SLASH + SCHEMA_INDICES_ENDPOINT);
+			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + APIStatics.SLASH + SCHEMA_INDICES_ENDPOINT);
 			final StringEntity reqEntity = new StringEntity("", ContentType.create(TEXT_PLAIN_MIMETYPE, Consts.UTF_8));
 
 			httpPost.setEntity(reqEntity);
@@ -447,8 +443,10 @@ public class Init implements Callable<String> {
 
 						logger.info(message);
 						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, UTF_8);
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String response = writer.toString();
+						writer.flush();
+						writer.close();
 
 						logger.info(String.format("[%s] response : '%s'", serviceName, response));
 
