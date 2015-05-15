@@ -37,8 +37,8 @@ import javax.json.JsonReader;
 import javax.json.stream.JsonGenerator;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -182,7 +182,8 @@ public class Transform implements Callable<String> {
 
 			// POST /dmp/tasks/
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.TASKS_ENDPOINT);
-			final StringEntity stringEntity = new StringEntity(task, ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
+			final StringEntity stringEntity = new StringEntity(task, ContentType.APPLICATION_JSON);
+			httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_JSON_MIMETYPE);
 			httpPost.setEntity(stringEntity);
 
 			logger.info(String.format("[%s] " + "request : %s", serviceName, httpPost.getRequestLine()));
