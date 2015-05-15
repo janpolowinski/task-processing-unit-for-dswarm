@@ -57,7 +57,7 @@ import org.apache.log4j.PropertyConfigurator;
  * @version 2015-04-20
  *
  */
-public class TaskProcessingUnit {
+public final class TaskProcessingUnit {
 
 	private static final String     CONFIG_PROPERTIES_FILE_NAME = "config.properties";
 	private static final String     CONF_FOLDER_NAME            = "conf";
@@ -202,7 +202,7 @@ public class TaskProcessingUnit {
 
 		// create job
 		final int cnt = 0;
-		Callable<String> initTask = new Init(config, logger, cnt);
+		final Callable<String> initTask = new Init(config, logger, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -230,13 +230,14 @@ public class TaskProcessingUnit {
 				return initResult;
 			}
 
-			pool.shutdown();
-
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
 			e.printStackTrace();
 
+		} finally {
+
+			pool.shutdown();
 		}
 
 		return null;
@@ -273,13 +274,14 @@ public class TaskProcessingUnit {
 				System.out.println(message1);
 			}
 
-			pool.shutdown();
-
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
 			e.printStackTrace();
 
+		} finally {
+
+			pool.shutdown();
 		}
 	}
 
@@ -308,13 +310,14 @@ public class TaskProcessingUnit {
 				System.out.println(message1);
 			}
 
-			pool.shutdown();
-
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
 			e.printStackTrace();
 
+		} finally {
+
+			pool.shutdown();
 		}
 	}
 
@@ -342,13 +345,14 @@ public class TaskProcessingUnit {
 				System.out.println(message1);
 			}
 
-			pool.shutdown();
-
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
 			e.printStackTrace();
 
+		} finally {
+
+			pool.shutdown();
 		}
 	}
 }
