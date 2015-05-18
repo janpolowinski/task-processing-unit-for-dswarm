@@ -20,6 +20,9 @@ public final class TPUStatics {
 	public static final String RESULTS_FOLDER_IDENTIFIER                 = "results.folder";
 	public static final String PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER = "prototype.outputDataModelID";
 	public static final String DO_TRANSFORMATIONS_IDENTIFIER             = "transform.do";
+	public static final String DO_INGEST_IDENTIFIER                      = "ingest.do";
+	public static final String DO_INIT_IDENTIFIER                        = "init.do";
 	public static final String PROTOTYPE_PROJECT_ID_INDENTIFIER          = "prototype.projectID";
+	public static final String PROTOTYPE_RESOURCE_ID_INDENTIFIER         = "prototype.resourceID";
 	public static final String PERSIST_IN_DMP_IDENTIFIER                 = "results.persistInDMP";
 }

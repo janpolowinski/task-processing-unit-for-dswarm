@@ -99,7 +99,6 @@ public class Transform implements Callable<String> {
 
 			// export and save to results folder
 			final String response = executeTask(inputDataModelID, projectID, outputDataModelID, serviceName, engineDswarmAPI);
-			System.out.println(response);
 			logger.debug(String.format("task execution result = '%s'", response));
 
 			return response;
@@ -107,7 +106,6 @@ public class Transform implements Callable<String> {
 
 			logger.error(String.format("[%s] Transforming datamodel '%s' to '%s' failed with a " + e.getClass().getSimpleName(), serviceName,
 					inputDataModelID, outputDataModelID), e);
-			e.printStackTrace();
 		}
 
 		return null;

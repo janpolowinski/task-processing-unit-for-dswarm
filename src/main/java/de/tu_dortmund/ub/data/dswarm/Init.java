@@ -202,7 +202,6 @@ public class Init implements Callable<String> {
 		} catch (final Exception e) {
 
 			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
-			e.printStackTrace();
 		}
 
 		return null;

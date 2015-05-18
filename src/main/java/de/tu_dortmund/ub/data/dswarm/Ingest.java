@@ -158,7 +158,6 @@ public class Ingest implements Callable<String> {
 		} catch (final Exception e) {
 
 			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
-			e.printStackTrace();
 		}
 
 		logger.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));

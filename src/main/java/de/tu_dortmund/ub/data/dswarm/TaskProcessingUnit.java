@@ -76,7 +76,7 @@ public final class TaskProcessingUnit {
 
 			for (final String arg : args) {
 
-				System.out.println("arg = " + arg);
+				logger.info("arg = " + arg);
 
 				if (arg.startsWith("-conf=")) {
 
@@ -98,7 +98,7 @@ public final class TaskProcessingUnit {
 		} catch (final IOException e) {
 
 			logger.error("something went wrong", e);
-			System.out.println(String.format("FATAL ERROR: Could not read '%s'!", conffile));
+			logger.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
 		}
 
 		// init logger
@@ -112,9 +112,6 @@ public final class TaskProcessingUnit {
 		final String log4jConfFile = config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER);
 
 		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
-		System.out.println(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
-		System.out.println(String.format("[%s] conf-file = %s", serviceName, conffile));
-		System.out.println(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		final String[] files = new File(resourceWatchFolder).list();
@@ -123,44 +120,67 @@ public final class TaskProcessingUnit {
 
 		logger.info(filesMessage);
 		logger.info(Arrays.toString(files));
-		System.out.println(filesMessage);
-		System.out.println(Arrays.toString(files));
 
 		// Init time counter
 		final long global = System.currentTimeMillis();
 
 		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
 
-		final String initResultJSONString = executeInit(serviceName, engineThreads);
+		final String doInitString = config.getProperty(TPUStatics.DO_INIT_IDENTIFIER);
+		final boolean doInit = Boolean.parseBoolean(doInitString);
 
-		if (initResultJSONString == null) {
+		final String inputDataModelID;
+		final String resourceID;
 
-			final String message = "couldn't create data model";
+		// init
+		if(doInit) {
 
-			logger.error(message);
+			final String initResultJSONString = executeInit(serviceName, engineThreads);
 
-			throw new Exception(message);
+			if (initResultJSONString == null) {
+
+				final String message = "couldn't create data model";
+
+				logger.error(message);
+
+				throw new Exception(message);
+			}
+
+			final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
+			final JsonObject initResultJSON = initResultJsonReader.readObject();
+
+			if (initResultJSON == null) {
+
+				final String message = "couldn't create data model";
+
+				logger.error(message);
+
+				throw new Exception(message);
+			}
+
+			inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
+			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+		} else {
+
+			inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
+			resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
+
+			logger.info("skip init part");
 		}
 
-		final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
-		final JsonObject initResultJSON = initResultJsonReader.readObject();
-
-		if (initResultJSON == null) {
-
-			final String message = "couldn't create data model";
-
-			logger.error(message);
-
-			throw new Exception(message);
-		}
-
-		final String dataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
-		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
-
-		final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
+		final String doIngestString = config.getProperty(TPUStatics.DO_INGEST_IDENTIFIER);
+		final boolean doIngest = Boolean.parseBoolean(doIngestString);
 
 		// ingest
-		executeIngests(files, dataModelID, resourceID, projectName, serviceName, engineThreads);
+		if (doIngest) {
+
+			final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
+
+			executeIngests(files, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
+		} else {
+
+			logger.info("skip ingest");
+		}
 
 		final String outputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER);
 
@@ -170,7 +190,10 @@ public final class TaskProcessingUnit {
 		// task execution
 		if (doTransformations) {
 
-			executeTransform(dataModelID, outputDataModelID, engineThreads, serviceName);
+			executeTransform(inputDataModelID, outputDataModelID, engineThreads, serviceName);
+		} else {
+
+			logger.info("skip transformations");
 		}
 
 		final String doExportString = config.getProperty(TPUStatics.DO_EXPORT_IDENTIFIER);
@@ -186,16 +209,20 @@ public final class TaskProcessingUnit {
 				exportDataModelID = outputDataModelID;
 			} else {
 
-				exportDataModelID = dataModelID;
+				exportDataModelID = inputDataModelID;
 			}
 
 			executeExport(exportDataModelID, engineThreads, serviceName);
+		} else {
+
+			logger.info("skip export");
 		}
+
+
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
 						(System.currentTimeMillis() - global) / 1000));
 		logger.info(tasksExecutedMessage);
-		System.out.println(tasksExecutedMessage);
 	}
 
 	private static String executeInit(final String serviceName, final Integer engineThreads) throws Exception {
@@ -225,7 +252,6 @@ public final class TaskProcessingUnit {
 				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
 
 				logger.info(message1);
-				System.out.println(message1);
 
 				return initResult;
 			}
@@ -233,8 +259,6 @@ public final class TaskProcessingUnit {
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
-			e.printStackTrace();
-
 		} finally {
 
 			pool.shutdown();
@@ -271,13 +295,11 @@ public final class TaskProcessingUnit {
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
 				logger.info(message1);
-				System.out.println(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
-			e.printStackTrace();
 
 		} finally {
 
@@ -285,12 +307,12 @@ public final class TaskProcessingUnit {
 		}
 	}
 
-	private static void executeTransform(final String initDataModelID, final String outputDataModelID, final Integer engineThreads,
+	private static void executeTransform(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
 			final String serviceName) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
-		transforms.add(new Transform(config, initDataModelID, outputDataModelID, logger));
+		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, logger));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -307,13 +329,11 @@ public final class TaskProcessingUnit {
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
 				logger.info(message1);
-				System.out.println(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
-			e.printStackTrace();
 
 		} finally {
 
@@ -342,13 +362,11 @@ public final class TaskProcessingUnit {
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
 				logger.info(message1);
-				System.out.println(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
 			logger.error("something went wrong", e);
-			e.printStackTrace();
 
 		} finally {
 
