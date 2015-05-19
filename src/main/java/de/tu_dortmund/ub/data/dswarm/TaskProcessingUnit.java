@@ -47,7 +47,6 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
@@ -118,6 +117,7 @@ public final class TaskProcessingUnit {
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		String[] files = new File(resourceWatchFolder).list();
+		Arrays.sort(files);
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
@@ -137,8 +137,11 @@ public final class TaskProcessingUnit {
 
 		// init
 		if(doInit) {
+			
+			// use the first file in the folder for init
+			String resourceFileName = files[0];
 
-			final String initResultJSONString = executeInit(serviceName, engineThreads);
+			final String initResultJSONString = executeInit(resourceFileName, serviceName, engineThreads);
 
 			if (initResultJSONString == null) {
 
@@ -165,8 +168,7 @@ public final class TaskProcessingUnit {
 			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
 			
 			// remove the file already processed during init from the files list to avoid duplicates
-			final String initResource = config.getProperty(TPUStatics.INIT_RESOURCE_NAME_IDENTIFIER);
-			files = ArrayUtils.removeElement(files, StringUtils.substringAfterLast(initResource, "/"));
+			files = ArrayUtils.removeElement(files, resourceFileName);
 			
 		} else {
 
@@ -233,11 +235,11 @@ public final class TaskProcessingUnit {
 		logger.info(tasksExecutedMessage);
 	}
 
-	private static String executeInit(final String serviceName, final Integer engineThreads) throws Exception {
+	private static String executeInit(String initResourceFileName, final String serviceName, final Integer engineThreads) throws Exception {
 
 		// create job
 		final int cnt = 0;
-		final Callable<String> initTask = new Init(config, logger, cnt);
+		final Callable<String> initTask = new Init(initResourceFileName, config, logger, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
