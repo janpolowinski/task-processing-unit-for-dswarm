@@ -76,12 +76,12 @@ public class Init implements Callable<String> {
 
 	private final Properties config;
 	private final Logger     logger;
-	private final String initResourceFileName;
+	private final String initResourceFile;
 	private final int cnt;
 
-	public Init(final String initResourceFileName, final Properties config, final Logger logger, final int cnt) {
+	public Init(final String initResourceFile, final Properties config, final Logger logger, final int cnt) {
 
-		this.initResourceFileName = initResourceFileName;
+		this.initResourceFile = initResourceFile;
 		this.config = config;
 		this.logger = logger;
 		this.cnt = cnt;
@@ -104,9 +104,9 @@ public class Init implements Callable<String> {
 
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-			final String name = String.format("resource for project '%s'", initResourceFileName);
+			final String name = String.format("resource for project '%s'", initResourceFile);
 			final String description = String.format("'resource does not belong to a project' - case %d", cnt);
-			final String inputResourceJson = uploadFileAndCreateResource(initResourceFileName, name, description, serviceName, engineDswarmAPI);
+			final String inputResourceJson = uploadFileAndCreateResource(initResourceFile, name, description, serviceName, engineDswarmAPI);
 
 			if (inputResourceJson == null) {
 
@@ -199,7 +199,7 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFileName, e.getClass().getSimpleName()), e);
+			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()), e);
 		}
 
 		return null;
@@ -220,11 +220,8 @@ public class Init implements Callable<String> {
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.RESOURCES_ENDPOINT);
-			
-			final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
-			final String completeFileName = resourceWatchFolder + File.separatorChar + filename;
 
-			final File file1 = new File(completeFileName);
+			final File file1 = new File(filename);
 			final FileBody fileBody = new FileBody(file1);
 			final StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
 			final StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
