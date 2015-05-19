@@ -46,6 +46,9 @@ import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
 
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -114,7 +117,7 @@ public final class TaskProcessingUnit {
 		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
-		final String[] files = new File(resourceWatchFolder).list();
+		String[] files = new File(resourceWatchFolder).list();
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
@@ -160,6 +163,11 @@ public final class TaskProcessingUnit {
 
 			inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+			
+			// remove the file already processed during init from the files list to avoid duplicates
+			final String initResource = config.getProperty(TPUStatics.INIT_RESOURCE_NAME_IDENTIFIER);
+			files = ArrayUtils.removeElement(files, StringUtils.substringAfterLast(initResource, "/"));
+			
 		} else {
 
 			inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
