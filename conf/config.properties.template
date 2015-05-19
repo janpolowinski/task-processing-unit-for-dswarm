@@ -7,7 +7,6 @@ project.name=LokSys
 # resources
 resource.watchfolder=data/LokSys/resources
 resource.preprocessing=false
-resource.initresource=/home/jan/Desktop/example-data/oai-pmh-marc21-400t-records/split-10-2/test_export_11001.xml
 
 configuration.name=/home/jan/git/task-processing-unit-for-dswarm/target/conf/oai-pmh-marc-xml-configuration.json
 

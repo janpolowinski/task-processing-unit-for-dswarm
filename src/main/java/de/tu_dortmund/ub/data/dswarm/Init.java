@@ -76,11 +76,12 @@ public class Init implements Callable<String> {
 
 	private final Properties config;
 	private final Logger     logger;
-
+	private final String initResourceFile;
 	private final int cnt;
 
-	public Init(final Properties config, final Logger logger, final int cnt) {
+	public Init(final String initResourceFile, final Properties config, final Logger logger, final int cnt) {
 
+		this.initResourceFile = initResourceFile;
 		this.config = config;
 		this.logger = logger;
 		this.cnt = cnt;
@@ -97,18 +98,15 @@ public class Init implements Callable<String> {
 
 		logger.info(String.format("[%s] Starting 'Init (Task)' ...", serviceName));
 
-		// init process values
-		final String resource = config.getProperty(TPUStatics.INIT_RESOURCE_NAME_IDENTIFIER);
-
 		try {
 
 			initSchemaIndices(serviceName);
 
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-			final String name = String.format("resource for project '%s'", resource);
+			final String name = String.format("resource for project '%s'", initResourceFile);
 			final String description = String.format("'resource does not belong to a project' - case %d", cnt);
-			final String inputResourceJson = uploadFileAndCreateResource(resource, name, description, serviceName, engineDswarmAPI);
+			final String inputResourceJson = uploadFileAndCreateResource(initResourceFile, name, description, serviceName, engineDswarmAPI);
 
 			if (inputResourceJson == null) {
 
@@ -201,7 +199,7 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
+			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()), e);
 		}
 
 		return null;

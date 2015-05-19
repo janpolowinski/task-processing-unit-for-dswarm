@@ -47,6 +47,7 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 
@@ -114,7 +115,8 @@ public final class TaskProcessingUnit {
 		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
-		final String[] files = new File(resourceWatchFolder).list();
+		String[] files = new File(resourceWatchFolder).list();
+		Arrays.sort(files);
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
@@ -134,8 +136,12 @@ public final class TaskProcessingUnit {
 
 		// init
 		if(doInit) {
+			
+			// use the first file in the folder for init
+			final String initResourceFileName = files[0];
+			final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
 
-			final String initResultJSONString = executeInit(serviceName, engineThreads);
+			final String initResultJSONString = executeInit(initResourceFile, serviceName, engineThreads);
 
 			if (initResultJSONString == null) {
 
@@ -160,6 +166,10 @@ public final class TaskProcessingUnit {
 
 			inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+			
+			// remove the file already processed during init from the files list to avoid duplicates
+			files = ArrayUtils.removeElement(files, initResourceFileName);
+			
 		} else {
 
 			inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
@@ -225,11 +235,11 @@ public final class TaskProcessingUnit {
 		logger.info(tasksExecutedMessage);
 	}
 
-	private static String executeInit(final String serviceName, final Integer engineThreads) throws Exception {
+	private static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads) throws Exception {
 
 		// create job
 		final int cnt = 0;
-		final Callable<String> initTask = new Init(config, logger, cnt);
+		final Callable<String> initTask = new Init(initResourceFile, config, logger, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
