@@ -26,14 +26,20 @@ package de.tu_dortmund.ub.data.dswarm;
 
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 
 import javax.json.Json;
 import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
+import javax.json.JsonValue;
 import javax.json.stream.JsonGenerator;
 
 import org.apache.commons.io.IOUtils;
@@ -59,11 +65,11 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Transform implements Callable<String> {
 
-	private final Properties config;
-	private final Logger     logger;
-	private final String     inputDataModelID;
-	private final String     outputDataModelID;
-	private final String     projectID;
+	private final Properties         config;
+	private final Logger             logger;
+	private final String             inputDataModelID;
+	private final String             outputDataModelID;
+	private final Collection<String> projectIDs;
 
 	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID, final Logger logger) {
 
@@ -80,7 +86,7 @@ public class Transform implements Callable<String> {
 			this.inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
 		}
 
-		this.projectID = config.getProperty(TPUStatics.PROTOTYPE_PROJECT_ID_INDENTIFIER);
+		this.projectIDs = determineProjectIDs();
 		this.outputDataModelID = outputDataModelID;
 	}
 
@@ -98,14 +104,14 @@ public class Transform implements Callable<String> {
 		try {
 
 			// export and save to results folder
-			final String response = executeTask(inputDataModelID, projectID, outputDataModelID, serviceName, engineDswarmAPI);
+			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI);
 			logger.debug(String.format("task execution result = '%s'", response));
 
 			return response;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Transforming datamodel '%s' to '%s' failed with a " + e.getClass().getSimpleName(), serviceName,
-					inputDataModelID, outputDataModelID), e);
+			logger.error(String.format("[%s] Transforming datamodel '%s' to '%s' failed with a %s", serviceName,
+					inputDataModelID, outputDataModelID, e.getClass().getSimpleName()), e);
 		}
 
 		return null;
@@ -115,14 +121,15 @@ public class Transform implements Callable<String> {
 	 * configuration and processing of the task
 	 *
 	 * @param inputDataModelID
-	 * @param projectID
+	 * @param projectIDs
 	 * @param outputDataModelID
 	 * @return
 	 */
-	private String executeTask(final String inputDataModelID, final String projectID, final String outputDataModelID, final String serviceName,
+	private String executeTask(final String inputDataModelID, final Collection<String> projectIDs, final String outputDataModelID,
+			final String serviceName,
 			final String engineDswarmAPI) throws Exception {
 
-		final JsonArray mappings = getMappingsFromProject(projectID, serviceName, engineDswarmAPI);
+		final JsonArray mappings = getMappingsFromProjects(projectIDs, serviceName, engineDswarmAPI);
 		final JsonObject inputDataModel = getDataModel(inputDataModelID, serviceName, engineDswarmAPI);
 		final JsonObject outputDataModel = getDataModel(outputDataModelID, serviceName, engineDswarmAPI);
 
@@ -210,6 +217,31 @@ public class Transform implements Callable<String> {
 		}
 
 		return null;
+	}
+
+	private JsonArray getMappingsFromProjects(final Collection<String> projectIDs, final String serviceName, final String engineDswarmAPI)
+			throws Exception {
+
+		final JsonArrayBuilder mappingArrayBuilder = Json.createArrayBuilder();
+
+		for (final String projectID : projectIDs) {
+
+			final JsonArray projectMappings = getMappingsFromProject(projectID, serviceName, engineDswarmAPI);
+
+			if (projectMappings == null) {
+
+				logger.error(String.format("couldn't determine mappings from project '%s'", projectID));
+
+				continue;
+			}
+
+			for (final JsonValue projectMapping : projectMappings) {
+
+				mappingArrayBuilder.add(projectMapping);
+			}
+		}
+
+		return mappingArrayBuilder.build();
 	}
 
 	private JsonArray getMappingsFromProject(final String projectID, final String serviceName, final String engineDswarmAPI) throws Exception {
@@ -311,5 +343,36 @@ public class Transform implements Callable<String> {
 		}
 
 		return null;
+	}
+
+	private Collection<String> determineProjectIDs() {
+
+		final List<String> projectIDs = new ArrayList<>();
+
+		final String projectIDsString = config.getProperty(TPUStatics.PROTOTYPE_PROJECT_IDS_INDENTIFIER, null);
+
+		if (projectIDsString != null && !projectIDsString.trim().isEmpty()) {
+
+			if (projectIDsString.contains(",")) {
+
+				// multiple project ids
+
+				final String[] projectIDsArray = projectIDsString.split(",");
+
+				Collections.addAll(projectIDs, projectIDsArray);
+			} else {
+
+				// only one project id
+
+				projectIDs.add(projectIDsString);
+			}
+		} else {
+
+			final String projectID = config.getProperty(TPUStatics.PROTOTYPE_PROJECT_ID_INDENTIFIER);
+
+			projectIDs.add(projectID);
+		}
+
+		return projectIDs;
 	}
 }
