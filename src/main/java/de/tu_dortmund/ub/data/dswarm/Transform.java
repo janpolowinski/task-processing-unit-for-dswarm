@@ -230,10 +230,12 @@ public class Transform implements Callable<String> {
 
 			if (projectMappings == null) {
 
-				logger.error(String.format("couldn't determine mappings from project '%s'", projectID));
+				logger.error(String.format("[%s] couldn't determine mappings from project '%s'", serviceName, projectID));
 
 				continue;
 			}
+
+			logger.info(String.format("[%s] retrieved '%d' mappings from project '%s'", serviceName, projectMappings.size(), projectID));
 
 			for (final JsonValue projectMapping : projectMappings) {
 
@@ -241,7 +243,11 @@ public class Transform implements Callable<String> {
 			}
 		}
 
-		return mappingArrayBuilder.build();
+		final JsonArray mappingsArray = mappingArrayBuilder.build();
+
+		logger.info(String.format("[%s] accumulated '%d' mappings from all projects", serviceName, mappingsArray.size()));
+
+		return mappingsArray;
 	}
 
 	private JsonArray getMappingsFromProject(final String projectID, final String serviceName, final String engineDswarmAPI) throws Exception {
