@@ -172,6 +172,8 @@ public class Transform implements Callable<String> {
 			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, optionalDoIngestOnTheFly.get());
 		}
 
+		jp.write(DswarmBackendStatics.DO_VERSIONING_ON_RESULT_IDENTIFIER, false);
+
 		// task
 		jp.writeStartObject(DswarmBackendStatics.TASK_IDENTIFIER);
 		jp.write(DswarmBackendStatics.NAME_IDENTIFIER, "Task Batch-Prozess 'CrossRef'");
