@@ -8,7 +8,7 @@
 	<packaging>jar</packaging>
 
 	<name>D:SWARM Task Processing Unit</name>
-	<url>http://maven.apache.org</url>
+	<url>https://github.com/dswarm/task-processing-unit-for-dswarm</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
