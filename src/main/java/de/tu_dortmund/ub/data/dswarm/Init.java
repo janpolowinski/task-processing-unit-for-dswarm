@@ -66,18 +66,18 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Init implements Callable<String> {
 
-	public static final String MAINTAIN_ENDPOINT             = "maintain";
-	public static final String SCHEMA_INDICES_ENDPOINT             = "schemaindices";
-	public static final String FILE_IDENTIFIER                = "file";
+	public static final String MAINTAIN_ENDPOINT        = "maintain";
+	public static final String SCHEMA_INDICES_ENDPOINT  = "schemaindices";
+	public static final String FILE_IDENTIFIER          = "file";
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
-	public static final String TEXT_PLAIN_MIMETYPE       = "text/plain";
-	public static final String DATA_MODEL_ID             = "data_model_id";
-	public static final String RESOURCE_ID               = "resource_id";
+	public static final String TEXT_PLAIN_MIMETYPE      = "text/plain";
+	public static final String DATA_MODEL_ID            = "data_model_id";
+	public static final String RESOURCE_ID              = "resource_id";
 
 	private final Properties config;
 	private final Logger     logger;
-	private final String initResourceFile;
-	private final int cnt;
+	private final String     initResourceFile;
+	private final int        cnt;
 
 	public Init(final String initResourceFile, final Properties config, final Logger logger, final int cnt) {
 
@@ -153,7 +153,7 @@ public class Init implements Callable<String> {
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = initSchemaIndices(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription,
+			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription,
 					serviceName,
 					engineDswarmAPI);
 
@@ -199,7 +199,8 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()), e);
+			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()),
+					e);
 		}
 
 		return null;
@@ -287,7 +288,8 @@ public class Init implements Callable<String> {
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.CONFIGURATIONS_ENDPOINT);
 			final String configurationJSONString = readFile(filename, Charsets.UTF_8);
 
-			final StringEntity reqEntity = new StringEntity(configurationJSONString, ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(configurationJSONString,
+					ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			httpPost.setEntity(reqEntity);
 
@@ -339,14 +341,29 @@ public class Init implements Callable<String> {
 	 * @return responseJson
 	 * @throws Exception
 	 */
-	private String initSchemaIndices(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
+	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
 			final String serviceName,
 			final String engineDswarmAPI) throws Exception {
 
-
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT);
+			final boolean doIngest;
+
+			final String doIngestString = config.getProperty(TPUStatics.DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER);
+
+			if (doIngestString != null && !doIngestString.trim().isEmpty()) {
+
+				doIngest = Boolean.valueOf(doIngestString);
+			} else {
+
+				// default = true
+				doIngest = true;
+			}
+
+			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.QUESTION_MARK
+					+ DswarmBackendStatics.DO_DATA_MODEL_INGEST_IDENTIFIER + APIStatics.EQUALS + doIngest;
+
+			final HttpPost httpPost = new HttpPost(uri);
 
 			final StringWriter stringWriter = new StringWriter();
 			final JsonGenerator jp = Json.createGenerator(stringWriter);
@@ -361,7 +378,8 @@ public class Init implements Callable<String> {
 			jp.flush();
 			jp.close();
 
-			final StringEntity reqEntity = new StringEntity(stringWriter.toString(), ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
+			final StringEntity reqEntity = new StringEntity(stringWriter.toString(),
+					ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
 
 			stringWriter.flush();
 			stringWriter.close();
@@ -413,7 +431,6 @@ public class Init implements Callable<String> {
 	 * @throws Exception
 	 */
 	private String initSchemaIndices(final String serviceName) throws Exception {
-
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 

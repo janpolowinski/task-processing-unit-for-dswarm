@@ -26,4 +26,5 @@ public final class TPUStatics {
 	public static final String PROTOTYPE_RESOURCE_ID_INDENTIFIER         = "prototype.resourceID";
 	public static final String PERSIST_IN_DMP_IDENTIFIER                 = "results.persistInDMP";
 	public static final String DO_INGEST_ON_THE_FLY_IDENTIFIER           = "task.do_ingest_on_the_fly";
+	public static final String DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER   = "init.data_model.do_ingest";
 }
