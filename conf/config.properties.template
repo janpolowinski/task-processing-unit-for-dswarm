@@ -37,6 +37,9 @@ transform.do=true
 # enables xml export (from the given output data model)
 export.do=true
 
+# to do ingest on-the-flye at task execution time, you need to disable init and ingest part and provide a valid prototype dataModelID
+task.do_ingest_on_the_fly=true
+
 # results
 
 # (optionally) - only necessary, if transform part is enabled; i.e., task execution result will be stored in the data hub)
