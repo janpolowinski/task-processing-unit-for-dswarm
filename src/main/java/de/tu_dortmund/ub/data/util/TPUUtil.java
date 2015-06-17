@@ -1,5 +1,6 @@
 package de.tu_dortmund.ub.data.util;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -51,6 +52,7 @@ public final class TPUUtil {
 		if (persistInFolder) {
 
 			final InputStream responseStream = httpResponse.getEntity().getContent();
+			final BufferedInputStream bis = new BufferedInputStream(responseStream, 1024);
 
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
 			final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
@@ -60,7 +62,10 @@ public final class TPUUtil {
 			final FileOutputStream outputStream = new FileOutputStream(fileName);
 			final BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(outputStream);
 
-			IOUtils.copy(responseStream, bufferedOutputStream);
+			IOUtils.copy(bis, bufferedOutputStream);
+			bufferedOutputStream.flush();
+			outputStream.flush();
+			bis.close();
 			responseStream.close();
 			bufferedOutputStream.close();
 			outputStream.close();
