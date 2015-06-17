@@ -43,6 +43,7 @@ import javax.json.JsonReader;
 import javax.json.JsonValue;
 import javax.json.stream.JsonGenerator;
 
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
@@ -99,16 +100,8 @@ public class Transform implements Callable<String> {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
-		final String doIngestOnTheFlyString = config.getProperty(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER);
-		final Optional<Boolean> optionalDoIngestOnTheFly;
-
-		if (doIngestOnTheFlyString != null && !doIngestOnTheFlyString.trim().isEmpty()) {
-
-			optionalDoIngestOnTheFly = Optional.of(Boolean.valueOf(doIngestOnTheFlyString));
-		} else {
-
-			optionalDoIngestOnTheFly = Optional.empty();
-		}
+		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
+		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
 		logger.info(String.format("[%s] Starting 'Transform (Task)' ...", serviceName));
 
@@ -116,7 +109,7 @@ public class Transform implements Callable<String> {
 
 			// export and save to results folder
 			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI,
-					optionalDoIngestOnTheFly);
+					optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
 			logger.debug(String.format("task execution result = '%s'", response));
 
 			return response;
@@ -138,7 +131,8 @@ public class Transform implements Callable<String> {
 	 * @return
 	 */
 	private String executeTask(final String inputDataModelID, final Collection<String> projectIDs, final String outputDataModelID,
-			final String serviceName, final String engineDswarmAPI, final Optional<Boolean> optionalDoIngestOnTheFly) throws Exception {
+			final String serviceName, final String engineDswarmAPI, final Optional<Boolean> optionalDoIngestOnTheFly,
+			final Optional<Boolean> optionalDoExportOnTheFly) throws Exception {
 
 		final JsonArray mappings = getMappingsFromProjects(projectIDs, serviceName, engineDswarmAPI);
 		final JsonObject inputDataModel = getDataModel(inputDataModelID, serviceName, engineDswarmAPI);
@@ -170,6 +164,13 @@ public class Transform implements Callable<String> {
 			logger.info(String.format("[%s] do ingest on-the-fly", serviceName));
 
 			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, optionalDoIngestOnTheFly.get());
+		}
+
+		if (optionalDoExportOnTheFly.isPresent()) {
+
+			logger.info(String.format("[%s] do export on-the-fly", serviceName));
+
+			jp.write(DswarmBackendStatics.DO_EXPORT_ON_THE_FLY, optionalDoExportOnTheFly.get());
 		}
 
 		jp.write(DswarmBackendStatics.DO_VERSIONING_ON_RESULT_IDENTIFIER, false);
@@ -208,7 +209,15 @@ public class Transform implements Callable<String> {
 			// POST /dmp/tasks/
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.TASKS_ENDPOINT);
 			final StringEntity stringEntity = new StringEntity(task, ContentType.APPLICATION_JSON);
-			httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_JSON_MIMETYPE);
+
+			if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
+
+				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_XML_MIMETYPE);
+			} else {
+
+				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_JSON_MIMETYPE);
+			}
+
 			httpPost.setEntity(stringEntity);
 
 			logger.info(String.format("[%s] " + "request : %s", serviceName, httpPost.getRequestLine()));
@@ -225,6 +234,18 @@ public class Transform implements Callable<String> {
 						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 						return "success";
+					}
+					case 200: {
+
+						if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
+
+							logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+
+							// write result to file
+							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID);
+
+							return "success - exported XML";
+						}
 					}
 					default: {
 

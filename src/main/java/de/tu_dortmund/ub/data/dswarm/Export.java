@@ -24,14 +24,10 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
-import org.apache.commons.io.IOUtils;
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -49,9 +45,6 @@ import org.apache.log4j.PropertyConfigurator;
 public class Export implements Callable<String> {
 
 	public static final String EXPORT_IDENTIFIER        = "export";
-	public static final String EXPORT_FILE_NAME_PREFIX  = "export-of-";
-	public static final String DOT                      = ".";
-	public static final String XML_FILE_ENDING          = "xml";
 	private final String     exportDataModelID;
 	private final Properties config;
 	private final Logger     logger;
@@ -132,21 +125,7 @@ public class Export implements Callable<String> {
 					}
 				}
 
-				final InputStream xmlResponse = httpResponse.getEntity().getContent();
-
-				final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
-				final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
-
-				if (persistInFolder) {
-
-					final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
-					final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
-					final BufferedOutputStream outputStream = new BufferedOutputStream(new FileOutputStream(fileName));
-
-					IOUtils.copy(xmlResponse, outputStream);
-					xmlResponse.close();
-					outputStream.close();
-				}
+				TPUUtil.writeResultToFile(httpResponse, config, exportDataModelID);
 			}
 		}
 	}
