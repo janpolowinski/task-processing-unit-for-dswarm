@@ -148,7 +148,8 @@ public class Transform implements Callable<String> {
 			persist = Boolean.valueOf(persistString);
 		} else {
 
-			persist = true;
+			// default is false
+			persist = false;
 		}
 
 		final StringWriter stringWriter = new StringWriter();
