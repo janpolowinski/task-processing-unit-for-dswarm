@@ -251,10 +251,10 @@ public class Transform implements Callable<String> {
 					default: {
 
 						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+
+						EntityUtils.consume(httpEntity);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
 
