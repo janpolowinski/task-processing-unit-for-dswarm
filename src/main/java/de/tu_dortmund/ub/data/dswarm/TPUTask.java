@@ -51,7 +51,7 @@ public class TPUTask implements Callable<String> {
 			// input data model = output data model, i.e., for each data model a separate export file will be created
 			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName);
 
-			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s'", serviceName, cnt, watchFolderFile);
+			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, watchFolderFile, inputDataModelID);
 		} catch (final Exception e) {
 
 			final String message = String.format("[%s] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, watchFolderFile);
