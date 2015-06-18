@@ -317,14 +317,14 @@ public class Transform implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
 						final JsonObject jsonObject = jsonReader.readObject();
 
 						final JsonArray mappings = jsonObject.getJsonArray(DswarmBackendStatics.MAPPINGS_IDENTIFIER);
 
-						LOG.info(String.format("[%s] mappings : %s", serviceName, mappings.toString()));
+						LOG.debug(String.format("[%s] mappings : %s", serviceName, mappings.toString()));
 
 						return mappings;
 					}

@@ -243,7 +243,7 @@ public class Ingest implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
 					}
