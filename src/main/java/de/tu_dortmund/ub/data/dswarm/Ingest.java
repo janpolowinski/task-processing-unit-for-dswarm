@@ -47,8 +47,8 @@ import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Ingest-Task for Task Processing Unit for d:swarm
@@ -60,6 +60,8 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Ingest implements Callable<String> {
 
+	private static final Logger LOG = LoggerFactory.getLogger(Ingest.class);
+
 	public static final String DATA_ENDPOINT                = "data";
 	public static final String CONFIGURATION_IDENTIFIER     = "configuration";
 	public static final String RESOURCES_IDENTIFIER = "resources";
@@ -69,7 +71,6 @@ public class Ingest implements Callable<String> {
 	public static final String ENABLE_VERSIONING_IDENTIFIER = "enableVersioning";
 	public static final String FALSE = "false";
 	private final Properties config;
-	private final Logger     logger;
 
 	private final String resource;
 	private final String dataModelID;
@@ -77,11 +78,10 @@ public class Ingest implements Callable<String> {
 	private final String projectName;
 	private final int    cnt;
 
-	public Ingest(final Properties config, final Logger logger, final String resource, final String dataModelID, final String resourceID,
+	public Ingest(final Properties config, final String resource, final String dataModelID, final String resourceID,
 			final String projectName, final int cnt) {
 
 		this.config = config;
-		this.logger = logger;
 		this.resource = resource;
 		this.dataModelID = dataModelID;
 		this.resourceID = resourceID;
@@ -92,13 +92,10 @@ public class Ingest implements Callable<String> {
 	//    @Override
 	public String call() {
 
-		// init logger
-		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
-
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
+		LOG.info(String.format("[%s] Starting 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
 		// init IDs of the prototype project
 		// final String dataModelID = config.getProperty(TPUStatics.PROTOTYPE_DATA_MODEL_ID_IDENTIFIER);
@@ -112,7 +109,7 @@ public class Ingest implements Callable<String> {
 		//			updateResourceID = getDataResourceID(dataModelID, serviceName, engineDswarmAPI);
 		//		} catch (final Exception e1) {
 		//
-		//			logger.error("something went wrong", e1);
+		//			LOG.error("something went wrong", e1);
 		//			e1.printStackTrace();
 		//
 		//			return null;
@@ -134,14 +131,14 @@ public class Ingest implements Callable<String> {
 
 			if (inputResourceJson == null) {
 
-				logger.error("something went wrong at resource update");
+				LOG.error("something went wrong at resource update");
 
 				return null;
 			}
 
 			jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
 			final String inputResourceID = jsonReader.readObject().getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] inputResourceID = %s", serviceName, inputResourceID));
+			LOG.info(String.format("[%s] inputResourceID = %s", serviceName, inputResourceID));
 
 			if (inputResourceID != null) {
 
@@ -150,17 +147,17 @@ public class Ingest implements Callable<String> {
 
 				// we don't need to transform after each ingest of a slice of records,
 				// so transform and export will be done separately
-				logger.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+				LOG.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
 			}
 
 			// no need to clean up resources or datamodels anymore
 
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
+			LOG.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
 		}
 
-		logger.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
+		LOG.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
 		return message;
 	}
@@ -182,8 +179,8 @@ public class Ingest implements Callable<String> {
 					+ APIStatics.EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + APIStatics.EQUALS + FALSE;
 			final HttpPost httpPost = new HttpPost(uri);
 
-			logger.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
@@ -196,13 +193,13 @@ public class Ingest implements Callable<String> {
 
 					case 200: {
 
-						logger.info(message);
+						LOG.info(message);
 
 						break;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 			}
@@ -226,7 +223,7 @@ public class Ingest implements Callable<String> {
 			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID;
 			final HttpGet httpGet = new HttpGet(uri);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
@@ -243,7 +240,7 @@ public class Ingest implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
 						final JsonObject jsonObject = jsonReader.readObject();
@@ -251,13 +248,13 @@ public class Ingest implements Callable<String> {
 
 						final String resourceID = resources.getJsonObject(0).getJsonString(DswarmBackendStatics.UUID_IDENTIFIER).getString();
 
-						logger.info(String.format("[%s] resourceID : %s", serviceName, resourceID));
+						LOG.info(String.format("[%s] resourceID : %s", serviceName, resourceID));
 
 						return resourceID;
 					}
 					default: {
 
-						logger.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						LOG.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
 								.getReasonPhrase()));
 					}
 				}
@@ -304,7 +301,7 @@ public class Ingest implements Callable<String> {
 
 			httpPut.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPut.getRequestLine()));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPut.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPut)) {
 
@@ -318,20 +315,20 @@ public class Ingest implements Callable<String> {
 
 					case 200: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 

@@ -26,14 +26,15 @@ import de.tu_dortmund.ub.data.dswarm.Init;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author tgaengler
  */
 public final class TPUUtil {
 
-	private static Logger logger = Logger.getLogger(TPUUtil.class.getName());
+	private static final Logger LOG = LoggerFactory.getLogger(TPUUtil.class);
 
 	public static final String EXPORT_FILE_NAME_PREFIX = "export-of-";
 	public static final String DOT                     = ".";
@@ -59,7 +60,7 @@ public final class TPUUtil {
 	public static void writeResultToFile(final CloseableHttpResponse httpResponse, final Properties config, final String exportDataModelID)
 			throws IOException {
 
-		logger.info("try to write result to file");
+		LOG.info("try to write result to file");
 
 		final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
 		final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
@@ -72,7 +73,7 @@ public final class TPUUtil {
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
 			final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
 
-			logger.info(String.format("start writing result to file '%s'", fileName));
+			LOG.info(String.format("start writing result to file '%s'", fileName));
 
 			final FileOutputStream outputStream = new FileOutputStream(fileName);
 			final BufferedOutputStream bufferedOutputStream = new BufferedOutputStream(outputStream);
@@ -99,7 +100,7 @@ public final class TPUUtil {
 
 			final String message = "couldn't create data model";
 
-			logger.error(message);
+			LOG.error(message);
 
 			throw new Exception(message);
 		}
@@ -111,7 +112,7 @@ public final class TPUUtil {
 
 			final String message = "couldn't create data model";
 
-			logger.error(message);
+			LOG.error(message);
 
 			throw new Exception(message);
 		}
@@ -119,11 +120,12 @@ public final class TPUUtil {
 		return initResultJSON;
 	}
 
-	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config) throws Exception {
+	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config)
+			throws Exception {
 
 		// create job
 		final int cnt = 0;
-		final Callable<String> initTask = new Init(initResourceFile, config, logger, cnt);
+		final Callable<String> initTask = new Init(initResourceFile, config, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -145,14 +147,14 @@ public final class TPUUtil {
 
 				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
 
-				logger.info(message1);
+				LOG.info(message1);
 
 				return initResult;
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 		} finally {
 
 			pool.shutdown();

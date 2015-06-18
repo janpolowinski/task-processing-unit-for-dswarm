@@ -52,8 +52,8 @@ import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Init-Task for Task Processing Unit for d:swarm<br/>
@@ -66,6 +66,8 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Init implements Callable<String> {
 
+	private static final Logger LOG = LoggerFactory.getLogger(Init.class);
+
 	public static final String MAINTAIN_ENDPOINT        = "maintain";
 	public static final String SCHEMA_INDICES_ENDPOINT  = "schemaindices";
 	public static final String FILE_IDENTIFIER          = "file";
@@ -75,28 +77,23 @@ public class Init implements Callable<String> {
 	public static final String RESOURCE_ID              = "resource_id";
 
 	private final Properties config;
-	private final Logger     logger;
 	private final String     initResourceFile;
 	private final int        cnt;
 
-	public Init(final String initResourceFile, final Properties config, final Logger logger, final int cnt) {
+	public Init(final String initResourceFile, final Properties config, final int cnt) {
 
 		this.initResourceFile = initResourceFile;
 		this.config = config;
-		this.logger = logger;
 		this.cnt = cnt;
 	}
 
 	//    @Override
 	public String call() {
 
-		// init logger
-		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
-
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Init (Task)' ...", serviceName));
+		LOG.info(String.format("[%s] Starting 'Init (Task)' ...", serviceName));
 
 		try {
 
@@ -110,7 +107,7 @@ public class Init implements Callable<String> {
 
 			if (inputResourceJson == null) {
 
-				logger.error("something went wrong at resource creation");
+				LOG.error("something went wrong at resource creation");
 
 				return null;
 			}
@@ -118,11 +115,11 @@ public class Init implements Callable<String> {
 			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
 			final JsonObject inputResourceJSON = inputResourceJsonReader.readObject();
 			final String inputResourceID = inputResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] input resource id = %s", serviceName, inputResourceID));
+			LOG.info(String.format("[%s] input resource id = %s", serviceName, inputResourceID));
 
 			if (inputResourceID == null) {
 
-				logger.error("something went wrong at resource creation, no resource uuid available");
+				LOG.error("something went wrong at resource creation, no resource uuid available");
 
 				return null;
 			}
@@ -133,7 +130,7 @@ public class Init implements Callable<String> {
 
 			if (configurationJSONString == null) {
 
-				logger.error("something went wrong at configuration creation");
+				LOG.error("something went wrong at configuration creation");
 
 				return null;
 			}
@@ -141,11 +138,11 @@ public class Init implements Callable<String> {
 			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, APIStatics.UTF_8));
 			final JsonObject configurationJSON = configurationJsonReader.readObject();
 			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] configuration id = %s", serviceName, configurationID));
+			LOG.info(String.format("[%s] configuration id = %s", serviceName, configurationID));
 
 			if (configurationID == null) {
 
-				logger.error("something went wrong at configuration creation, no configuration uuid available");
+				LOG.error("something went wrong at configuration creation, no configuration uuid available");
 
 				return null;
 			}
@@ -159,7 +156,7 @@ public class Init implements Callable<String> {
 
 			if (dataModelJSONString == null) {
 
-				logger.error("something went wrong at data model creation");
+				LOG.error("something went wrong at data model creation");
 
 				return null;
 			}
@@ -167,18 +164,18 @@ public class Init implements Callable<String> {
 			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
 			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
 			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] configuration id = %s", serviceName, dataModelID));
+			LOG.info(String.format("[%s] configuration id = %s", serviceName, dataModelID));
 
 			if (dataModelID == null) {
 
-				logger.error("something went wrong at data model creation, no data model uuid available");
+				LOG.error("something went wrong at data model creation, no data model uuid available");
 
 				return null;
 			}
 
 			// we don't need to transform after each ingest of a slice of records,
 			// so transform and export will be done separately
-			logger.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+			LOG.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
 
 			final StringWriter stringWriter = new StringWriter();
 			final JsonGenerator jp = Json.createGenerator(stringWriter);
@@ -199,7 +196,7 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()),
+			LOG.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()),
 					e);
 		}
 
@@ -235,7 +232,7 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
@@ -249,20 +246,20 @@ public class Init implements Callable<String> {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 
@@ -293,7 +290,7 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
@@ -307,20 +304,20 @@ public class Init implements Callable<String> {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 
@@ -386,7 +383,7 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
@@ -400,20 +397,20 @@ public class Init implements Callable<String> {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 
@@ -441,7 +438,7 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
@@ -455,20 +452,20 @@ public class Init implements Callable<String> {
 
 					case 200: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String response = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] response : '%s'", serviceName, response));
+						LOG.info(String.format("[%s] response : '%s'", serviceName, response));
 
 						return response;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 

@@ -50,8 +50,8 @@ import javax.json.JsonObject;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Task Processing Unit for d:swarm
@@ -62,11 +62,11 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public final class TaskProcessingUnit {
 
+	private static final Logger LOG = LoggerFactory.getLogger(TaskProcessingUnit.class);
+
 	private static final String     CONFIG_PROPERTIES_FILE_NAME = "config.properties";
 	private static final String     CONF_FOLDER_NAME            = "conf";
 	private static       Properties config                      = new Properties();
-
-	private static Logger logger = Logger.getLogger(TaskProcessingUnit.class.getName());
 
 	public static void main(final String[] args) throws Exception {
 
@@ -78,7 +78,7 @@ public final class TaskProcessingUnit {
 
 			for (final String arg : args) {
 
-				logger.info("arg = " + arg);
+				LOG.info("arg = " + arg);
 
 				if (arg.startsWith("-conf=")) {
 
@@ -99,21 +99,14 @@ public final class TaskProcessingUnit {
 			}
 		} catch (final IOException e) {
 
-			logger.error("something went wrong", e);
-			logger.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
+			LOG.error("something went wrong", e);
+			LOG.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
 		}
-
-		// init logger
-		PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
-		logger.info(String.format("[%s] conf-file = %s", serviceName, conffile));
-
-		final String log4jConfFile = config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER);
-
-		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
+		LOG.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
+		LOG.info(String.format("[%s] conf-file = %s", serviceName, conffile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		String[] watchFolderFiles = new File(resourceWatchFolder).list();
@@ -121,8 +114,8 @@ public final class TaskProcessingUnit {
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
-		logger.info(filesMessage);
-		logger.info(Arrays.toString(watchFolderFiles));
+		LOG.info(filesMessage);
+		LOG.info(Arrays.toString(watchFolderFiles));
 
 		// Init time counter
 		final long global = System.currentTimeMillis();
@@ -155,17 +148,18 @@ public final class TaskProcessingUnit {
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
 						(System.currentTimeMillis() - global) / 1000));
-		logger.info(tasksExecutedMessage);
+		LOG.info(tasksExecutedMessage);
 	}
 
-	private static void executeTPUTask(final String [] watchFolderFiles, final String resourceWatchFolder, final Integer engineThreads, final String serviceName) throws Exception {
+	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder, final Integer engineThreads,
+			final String serviceName) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
 
 		int cnt = 1;
 
-		for(final String watchFolderFile : watchFolderFiles) {
+		for (final String watchFolderFile : watchFolderFiles) {
 
 			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, serviceName, cnt));
 
@@ -186,12 +180,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
@@ -238,7 +232,7 @@ public final class TaskProcessingUnit {
 
 			inputDataModelsAndResources.put(inputDataModelID, resourceID);
 
-			logger.info("skip init part");
+			LOG.info("skip init part");
 		}
 
 		final Optional<Boolean> optionalDoIngest = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_IDENTIFIER, config);
@@ -261,7 +255,7 @@ public final class TaskProcessingUnit {
 			}
 		} else {
 
-			logger.info("skip ingest");
+			LOG.info("skip ingest");
 		}
 
 		final String outputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER);
@@ -292,7 +286,7 @@ public final class TaskProcessingUnit {
 			}
 		} else {
 
-			logger.info("skip transformations");
+			LOG.info("skip transformations");
 		}
 
 		final Optional<Boolean> optionalDoExport = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_IDENTIFIER, config);
@@ -320,7 +314,7 @@ public final class TaskProcessingUnit {
 			}
 		} else {
 
-			logger.info("skip export");
+			LOG.info("skip export");
 		}
 	}
 
@@ -334,7 +328,7 @@ public final class TaskProcessingUnit {
 		for (final String file : files) {
 
 			cnt++;
-			filesToPush.add(new Ingest(config, logger, file, dataModelID, resourceID, projectName, cnt));
+			filesToPush.add(new Ingest(config, file, dataModelID, resourceID, projectName, cnt));
 		}
 
 		// work on jobs
@@ -351,12 +345,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
@@ -370,7 +364,7 @@ public final class TaskProcessingUnit {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
-		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, logger));
+		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -386,12 +380,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
@@ -403,7 +397,7 @@ public final class TaskProcessingUnit {
 
 		// create job list
 		final LinkedList<Callable<String>> exports = new LinkedList<>();
-		exports.add(new Export(exportDataModelID, config, logger));
+		exports.add(new Export(exportDataModelID, config));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -419,12 +413,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 

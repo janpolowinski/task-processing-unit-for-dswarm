@@ -67,11 +67,3 @@ engine.threads=1
 engine.dswarm.api=http://129.217.132.83:8080/dmp/
 engine.dswarm.graph.api=http://localhost:7474/graph/
 
-######################
-# Service Parameters #
-######################
-
-service.name=d:swarm task execution engine
-# logging configuration
-service.log4j-conf=conf/log4j.properties
-

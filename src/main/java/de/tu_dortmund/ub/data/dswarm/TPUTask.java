@@ -15,14 +15,15 @@ import java.util.concurrent.TimeUnit;
 import javax.json.JsonObject;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author tgaengler
  */
 public class TPUTask implements Callable<String> {
 
-	private static Logger logger = Logger.getLogger(TPUTask.class.getName());
+	private static final Logger LOG = LoggerFactory.getLogger(TPUTask.class);
 
 	private final Properties config;
 	private final String     watchFolderFile;
@@ -56,7 +57,7 @@ public class TPUTask implements Callable<String> {
 
 			final String message = String.format("[%s] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, watchFolderFile);
 
-			logger.error(message, e);
+			LOG.error(message, e);
 
 			return message;
 		}
@@ -70,7 +71,7 @@ public class TPUTask implements Callable<String> {
 		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.FALSE);
 		final Optional<Boolean> optionalDoIngestOnTheFly = Optional.of(Boolean.TRUE);
 		final Callable<String> transformTask = new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly,
-				optionalDoExportOnTheFly, logger);
+				optionalDoExportOnTheFly);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -92,12 +93,12 @@ public class TPUTask implements Callable<String> {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 

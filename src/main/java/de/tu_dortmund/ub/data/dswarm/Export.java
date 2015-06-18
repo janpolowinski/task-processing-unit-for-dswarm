@@ -32,8 +32,8 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Export Task for Task Processing Unit for d:swarm
@@ -44,27 +44,24 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Export implements Callable<String> {
 
+	private static final Logger LOG = LoggerFactory.getLogger(Export.class);
+
 	public static final String EXPORT_IDENTIFIER        = "export";
 	private final String     exportDataModelID;
 	private final Properties config;
-	private final Logger     logger;
 
-	public Export(final String exportDataModelIDArg, final Properties config, final Logger logger) {
+	public Export(final String exportDataModelIDArg, final Properties config) {
 
 		exportDataModelID = exportDataModelIDArg;
 		this.config = config;
-		this.logger = logger;
 	}
 
 	//    @Override
 	public String call() {
 
-		// init logger
-		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
-
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'XML-Export (Task)' ...", serviceName));
+		LOG.info(String.format("[%s] Starting 'XML-Export (Task)' ...", serviceName));
 
 		// init process values
 		String message = null;
@@ -74,10 +71,9 @@ public class Export implements Callable<String> {
 			// export and save to results folder
 			exportDataModel(exportDataModelID, serviceName);
 
-
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
+			LOG.error(String.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
 					.getSimpleName()), e);
 		}
 
@@ -99,13 +95,14 @@ public class Export implements Callable<String> {
 
 			final String uri =
 					engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID + APIStatics.SLASH + EXPORT_IDENTIFIER
-							+ APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER + APIStatics.EQUALS + APIStatics.APPLICATION_XML_MIMETYPE;
+							+ APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER + APIStatics.EQUALS
+							+ APIStatics.APPLICATION_XML_MIMETYPE;
 			final HttpGet httpGet = new HttpGet(uri);
 
 			//			httpGet.setHeader(name, value);
 
-			logger.info(String.format("[%s] dataModelID : %s", serviceName, dataModelID));
-			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
+			LOG.info(String.format("[%s] dataModelID : %s", serviceName, dataModelID));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
@@ -115,13 +112,13 @@ public class Export implements Callable<String> {
 
 					case 200: {
 
-						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+						LOG.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 						break;
 					}
 					default: {
 
-						logger.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+						LOG.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 					}
 				}
 
