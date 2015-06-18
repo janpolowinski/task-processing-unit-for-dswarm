@@ -161,7 +161,7 @@ public final class TaskProcessingUnit {
 
 		for (final String watchFolderFile : watchFolderFiles) {
 
-			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", cnt, watchFolderFile);
+			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", serviceName, cnt, cnt, watchFolderFile);
 
 			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, serviceName, cnt));
 
