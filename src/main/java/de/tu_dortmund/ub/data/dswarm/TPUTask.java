@@ -69,7 +69,7 @@ public class TPUTask implements Callable<String> {
 			final String serviceName, final int cnt) {
 
 		// create job
-		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.FALSE);
+		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.TRUE);
 		final Optional<Boolean> optionalDoIngestOnTheFly = Optional.of(Boolean.TRUE);
 		final Callable<String> transformTask = new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly,
 				optionalDoExportOnTheFly, cnt);

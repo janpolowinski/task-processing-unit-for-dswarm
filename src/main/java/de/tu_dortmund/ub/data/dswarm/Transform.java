@@ -210,11 +210,12 @@ public class Transform implements Callable<String> {
 
 		LOG.debug(String.format("[%s][%d] task : %s", serviceName, cnt, task));
 
-		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			// POST /dmp/tasks/
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.TASKS_ENDPOINT);
 			final StringEntity stringEntity = new StringEntity(task, ContentType.APPLICATION_JSON);
+			stringEntity.setChunked(true);
 
 			final String mimetype;
 
@@ -246,7 +247,7 @@ public class Transform implements Callable<String> {
 			LOG.info(String.format("[%s][%d] request : %s :: headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
 					sb.toString(), stringEntity));
 
-			try (CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
@@ -317,7 +318,7 @@ public class Transform implements Callable<String> {
 
 	private JsonArray getMappingsFromProject(final String projectID, final String serviceName, final String engineDswarmAPI) throws Exception {
 
-		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			// Hole Mappings aus dem Projekt mit 'projectID'
 			final String uri = engineDswarmAPI + DswarmBackendStatics.PROJECTS_ENDPOINT + APIStatics.SLASH + projectID;
@@ -325,7 +326,7 @@ public class Transform implements Callable<String> {
 
 			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpGet.getRequestLine()));
 
-			try (CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
