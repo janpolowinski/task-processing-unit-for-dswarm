@@ -45,6 +45,7 @@ import javax.json.stream.JsonGenerator;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -69,13 +70,15 @@ public class Transform implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Transform.class);
 
+	public static final String CHUNKED_TRANSFER_ENCODING = "chunked";
+
 	private final Properties         config;
 	private final String             inputDataModelID;
 	private final String             outputDataModelID;
 	private final Collection<String> projectIDs;
 	private final Optional<Boolean>  optionalDoIngestOnTheFly;
 	private final Optional<Boolean>  optionalDoExportOnTheFly;
-	private final int cnt;
+	private final int                cnt;
 
 	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID,
 			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final int cnt) {
@@ -213,17 +216,35 @@ public class Transform implements Callable<String> {
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.TASKS_ENDPOINT);
 			final StringEntity stringEntity = new StringEntity(task, ContentType.APPLICATION_JSON);
 
+			final String mimetype;
+
 			if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_XML_MIMETYPE);
+				mimetype = APIStatics.APPLICATION_XML_MIMETYPE;
 			} else {
 
-				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_JSON_MIMETYPE);
+				mimetype = APIStatics.APPLICATION_JSON_MIMETYPE;
 			}
+
+			httpPost.setHeader(HttpHeaders.ACCEPT, mimetype);
+			httpPost.setHeader(HttpHeaders.TRANSFER_ENCODING, CHUNKED_TRANSFER_ENCODING);
 
 			httpPost.setEntity(stringEntity);
 
-			LOG.info(String.format("[%s][%d] request : %s :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(), stringEntity));
+			final Header[] headers = httpPost.getAllHeaders();
+
+			final StringBuilder sb = new StringBuilder();
+
+			for (final Header header : headers) {
+
+				final String name = header.getName();
+				final String value = header.getValue();
+
+				sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
+			}
+
+			LOG.info(String.format("[%s][%d] request : %s :: headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
+					sb.toString(), stringEntity));
 
 			try (CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
