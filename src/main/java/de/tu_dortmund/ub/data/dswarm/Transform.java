@@ -234,20 +234,14 @@ public class Transform implements Callable<String> {
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
-				final Header[] headers = httpResponse.getAllHeaders();
+				final Header[] requestHeaders = httpPost.getAllHeaders();
+				final Header[] responseHeaders = httpResponse.getAllHeaders();
 
-				final StringBuilder sb = new StringBuilder();
+				final String printedRequestHeaders = printHeaders(requestHeaders);
+				final String printedResponseHeaders = printHeaders(responseHeaders);
 
-				for (final Header header : headers) {
-
-					final String name = header.getName();
-					final String value = header.getValue();
-
-					sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
-				}
-
-				LOG.info(String.format("[%s][%d] request : %s :: headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
-						sb.toString(), stringEntity));
+				LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s' :: response headers : \n'%s'", serviceName, cnt, httpPost.getRequestLine(),
+						printedRequestHeaders, stringEntity, printedResponseHeaders));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
@@ -283,6 +277,21 @@ public class Transform implements Callable<String> {
 		}
 
 		return null;
+	}
+
+	private String printHeaders(final Header[] headers) {
+
+		final StringBuilder sb = new StringBuilder();
+
+		for (final Header header : headers) {
+
+			final String name = header.getName();
+			final String value = header.getValue();
+
+			sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
+		}
+
+		return sb.toString();
 	}
 
 	private JsonArray getMappingsFromProjects(final Collection<String> projectIDs, final String serviceName, final String engineDswarmAPI)
