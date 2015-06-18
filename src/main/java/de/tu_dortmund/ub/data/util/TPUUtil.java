@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -22,10 +23,19 @@ import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
 
+import de.tu_dortmund.ub.data.dswarm.APIStatics;
 import de.tu_dortmund.ub.data.dswarm.Init;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.Consts;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,6 +50,9 @@ public final class TPUUtil {
 	public static final String DOT                     = ".";
 	public static final String XML_FILE_ENDING         = "xml";
 	public static final String UTF_8                   = "UTF-8";
+	public static final String MAINTAIN_ENDPOINT       = "maintain";
+	public static final String SCHEMA_INDICES_ENDPOINT = "schemaindices";
+	public static final String TEXT_PLAIN_MIMETYPE     = "text/plain";
 
 	public static Optional<Boolean> getBooleanConfigValue(final String configKey, final Properties config) {
 
@@ -158,6 +171,61 @@ public final class TPUUtil {
 		} finally {
 
 			pool.shutdown();
+		}
+
+		return null;
+	}
+
+	/**
+	 * inits schema indices or ensures that they are there
+	 *
+	 * @param serviceName
+	 * @throws Exception
+	 */
+	public static String initSchemaIndices(final String serviceName, final Properties config) throws Exception {
+
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+
+			final String engineDswarmGraphAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_GRAPH_API_IDENTIFIER);
+
+			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + APIStatics.SLASH + SCHEMA_INDICES_ENDPOINT);
+			final StringEntity reqEntity = new StringEntity("", ContentType.create(TEXT_PLAIN_MIMETYPE, Consts.UTF_8));
+
+			httpPost.setEntity(reqEntity);
+
+			LOG.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
+
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+				final HttpEntity httpEntity = httpResponse.getEntity();
+
+				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						.getReasonPhrase());
+
+				switch (statusCode) {
+
+					case 200: {
+
+						LOG.info(message);
+						final StringWriter writer = new StringWriter();
+						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
+						final String response = writer.toString();
+						writer.flush();
+						writer.close();
+
+						LOG.info(String.format("[%s] response : '%s'", serviceName, response));
+
+						return response;
+					}
+					default: {
+
+						LOG.error(message);
+					}
+				}
+
+				EntityUtils.consume(httpEntity);
+			}
 		}
 
 		return null;

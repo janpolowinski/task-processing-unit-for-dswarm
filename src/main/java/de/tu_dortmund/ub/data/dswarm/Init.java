@@ -38,6 +38,7 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 import javax.json.stream.JsonGenerator;
 
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.Consts;
@@ -68,11 +69,8 @@ public class Init implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Init.class);
 
-	public static final String MAINTAIN_ENDPOINT        = "maintain";
-	public static final String SCHEMA_INDICES_ENDPOINT  = "schemaindices";
 	public static final String FILE_IDENTIFIER          = "file";
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
-	public static final String TEXT_PLAIN_MIMETYPE      = "text/plain";
 	public static final String DATA_MODEL_ID            = "data_model_id";
 	public static final String RESOURCE_ID              = "resource_id";
 
@@ -97,7 +95,7 @@ public class Init implements Callable<String> {
 
 		try {
 
-			initSchemaIndices(serviceName);
+			TPUUtil.initSchemaIndices(serviceName, config);
 
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
@@ -404,64 +402,9 @@ public class Init implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
 
 						return responseJson;
-					}
-					default: {
-
-						LOG.error(message);
-					}
-				}
-
-				EntityUtils.consume(httpEntity);
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * inits schema indices or ensures that they are there
-	 *
-	 * @param serviceName
-	 * @throws Exception
-	 */
-	private String initSchemaIndices(final String serviceName) throws Exception {
-
-		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-
-			final String engineDswarmGraphAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_GRAPH_API_IDENTIFIER);
-
-			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + APIStatics.SLASH + SCHEMA_INDICES_ENDPOINT);
-			final StringEntity reqEntity = new StringEntity("", ContentType.create(TEXT_PLAIN_MIMETYPE, Consts.UTF_8));
-
-			httpPost.setEntity(reqEntity);
-
-			LOG.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
-
-			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
-
-				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
-
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
-						.getReasonPhrase());
-
-				switch (statusCode) {
-
-					case 200: {
-
-						LOG.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String response = writer.toString();
-						writer.flush();
-						writer.close();
-
-						LOG.info(String.format("[%s] response : '%s'", serviceName, response));
-
-						return response;
 					}
 					default: {
 

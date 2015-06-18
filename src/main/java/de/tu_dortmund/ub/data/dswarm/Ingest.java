@@ -30,14 +30,11 @@ import java.util.Properties;
 import java.util.concurrent.Callable;
 
 import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonObject;
 import javax.json.JsonReader;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
@@ -62,14 +59,12 @@ public class Ingest implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Ingest.class);
 
-	public static final String DATA_ENDPOINT                = "data";
-	public static final String CONFIGURATION_IDENTIFIER     = "configuration";
-	public static final String RESOURCES_IDENTIFIER = "resources";
-	public static final String FILE_IDENTIFIER = "file";
+	public static final String DATA_ENDPOINT                  = "data";
+	public static final String FILE_IDENTIFIER                = "file";
 	public static final String DELTA_UPDATE_FORMAT_IDENTIFIER = "delta";
-	public static final String AMBERSENT = "&";
-	public static final String ENABLE_VERSIONING_IDENTIFIER = "enableVersioning";
-	public static final String FALSE = "false";
+	public static final String AMBERSENT                      = "&";
+	public static final String ENABLE_VERSIONING_IDENTIFIER   = "enableVersioning";
+	public static final String FALSE                          = "false";
 	private final Properties config;
 
 	private final String resource;
@@ -97,23 +92,7 @@ public class Ingest implements Callable<String> {
 
 		LOG.info(String.format("[%s] Starting 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
-		// init IDs of the prototype project
-		// final String dataModelID = config.getProperty(TPUStatics.PROTOTYPE_DATA_MODEL_ID_IDENTIFIER);
 		final String dataModelID = this.dataModelID;
-		//        String projectID = config.getProperty("prototype.projectID");
-		//        String outputDataModelID = config.getProperty("prototype.outputDataModelID"); // Internal Data Model BiboDocument
-		//      String updateResourceID = config.getProperty("prototype.resourceID"); // the resource ID to update for each uploaded file
-		// use the projects resource as the update-resource for now:
-		//		String updateResourceID = null;
-		//		try {
-		//			updateResourceID = getDataResourceID(dataModelID, serviceName, engineDswarmAPI);
-		//		} catch (final Exception e1) {
-		//
-		//			LOG.error("something went wrong", e1);
-		//			e1.printStackTrace();
-		//
-		//			return null;
-		//		}
 		final String updateResourceID = resourceID;
 
 		// init process values
@@ -121,9 +100,7 @@ public class Ingest implements Callable<String> {
 
 		try {
 			// build a InputDataModel for the resource
-			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
 			final String name = String.format("resource for project '%s'", resource);
-			//final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
 			final String description = String.format("'%s' - case %d", projectName, cnt);
 			final String inputResourceJson = uploadFileAndUpdateResource(updateResourceID, resource, name,
 					description, serviceName, engineDswarmAPI);
@@ -175,7 +152,8 @@ public class Ingest implements Callable<String> {
 			// Update the existing input Data Model (we are simply using the example data model here ... TODO !)
 			// note: format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
 			// note: enableVersioning=false to speed up ingest (however this requires unique resources)
-			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + inputDataModelID + APIStatics.SLASH + DATA_ENDPOINT + APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER
+			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + inputDataModelID + APIStatics.SLASH
+					+ DATA_ENDPOINT + APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER
 					+ APIStatics.EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + APIStatics.EQUALS + FALSE;
 			final HttpPost httpPost = new HttpPost(uri);
 
@@ -209,64 +187,6 @@ public class Ingest implements Callable<String> {
 	}
 
 	/**
-	 * get the resource id of the resource for the data model for the the prototype project
-	 *
-	 * @param dataModelID
-	 * @return resourceID
-	 * @throws Exception
-	 */
-	private String getDataResourceID(final String dataModelID, final String serviceName, final String engineDswarmAPI) throws Exception {
-
-		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-
-			// Hole Mappings aus dem Projekt mit 'projectID'
-			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID;
-			final HttpGet httpGet = new HttpGet(uri);
-
-			LOG.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
-
-			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
-
-				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
-
-				switch (statusCode) {
-
-					case 200: {
-
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String responseJson = writer.toString();
-						writer.flush();
-						writer.close();
-
-						LOG.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
-
-						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
-						final JsonObject jsonObject = jsonReader.readObject();
-						final JsonArray resources = jsonObject.getJsonObject(CONFIGURATION_IDENTIFIER).getJsonArray(RESOURCES_IDENTIFIER);
-
-						final String resourceID = resources.getJsonObject(0).getJsonString(DswarmBackendStatics.UUID_IDENTIFIER).getString();
-
-						LOG.info(String.format("[%s] resourceID : %s", serviceName, resourceID));
-
-						return resourceID;
-					}
-					default: {
-
-						LOG.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
-								.getReasonPhrase()));
-					}
-				}
-
-				EntityUtils.consume(httpEntity);
-			}
-		}
-
-		return null;
-	}
-
-	/**
 	 * upload a file and update an existing resource with it
 	 *
 	 * @param resourceUUID
@@ -276,7 +196,8 @@ public class Ingest implements Callable<String> {
 	 * @return responseJson
 	 * @throws Exception
 	 */
-	private String uploadFileAndUpdateResource(final String resourceUUID, final String filename, final String name, final String description, final String serviceName, final String engineDswarmAPI) throws Exception {
+	private String uploadFileAndUpdateResource(final String resourceUUID, final String filename, final String name, final String description,
+			final String serviceName, final String engineDswarmAPI) throws Exception {
 
 		if (null == resourceUUID)
 			throw new Exception("ID of the resource to update was null.");

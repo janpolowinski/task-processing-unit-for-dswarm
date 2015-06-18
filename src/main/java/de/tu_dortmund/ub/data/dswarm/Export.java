@@ -46,7 +46,7 @@ public class Export implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Export.class);
 
-	public static final String EXPORT_IDENTIFIER        = "export";
+	public static final String EXPORT_IDENTIFIER = "export";
 	private final String     exportDataModelID;
 	private final Properties config;
 
@@ -67,6 +67,8 @@ public class Export implements Callable<String> {
 		String message = null;
 
 		try {
+
+			TPUUtil.initSchemaIndices(serviceName, config);
 
 			// export and save to results folder
 			exportDataModel(exportDataModelID, serviceName);

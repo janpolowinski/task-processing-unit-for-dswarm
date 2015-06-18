@@ -203,7 +203,7 @@ public class Transform implements Callable<String> {
 		stringWriter.flush();
 		stringWriter.close();
 
-		LOG.info(String.format("[%s] task : %s", serviceName, task));
+		LOG.debug(String.format("[%s] task : %s", serviceName, task));
 
 		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
@@ -221,7 +221,7 @@ public class Transform implements Callable<String> {
 
 			httpPost.setEntity(stringEntity);
 
-			LOG.info(String.format("[%s] " + "request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s] " + "request : %s :: body : '%s'", serviceName, httpPost.getRequestLine(), stringEntity));
 
 			try (CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
