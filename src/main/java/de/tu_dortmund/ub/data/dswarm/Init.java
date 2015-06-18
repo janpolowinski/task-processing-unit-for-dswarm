@@ -91,11 +91,29 @@ public class Init implements Callable<String> {
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-		LOG.info(String.format("[%s] Starting 'Init (Task)' ...", serviceName));
+		LOG.info(String.format("[%s][%d] Starting 'Init (Task)' ...", serviceName, cnt));
 
 		try {
 
-			TPUUtil.initSchemaIndices(serviceName, config);
+			final boolean doIngest;
+
+			final String doIngestString = config.getProperty(TPUStatics.DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER);
+
+			if (doIngestString != null && !doIngestString.trim().isEmpty()) {
+
+				doIngest = Boolean.valueOf(doIngestString);
+			} else {
+
+				// default = true
+				doIngest = true;
+			}
+
+			if (doIngest) {
+
+				LOG.debug("[{}][{}] do data model creation with data ingest", serviceName, cnt);
+
+				TPUUtil.initSchemaIndices(serviceName, config);
+			}
 
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
@@ -113,7 +131,7 @@ public class Init implements Callable<String> {
 			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
 			final JsonObject inputResourceJSON = inputResourceJsonReader.readObject();
 			final String inputResourceID = inputResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			LOG.info(String.format("[%s] input resource id = %s", serviceName, inputResourceID));
+			LOG.info(String.format("[%s][%d] input resource id = %s", serviceName, cnt, inputResourceID));
 
 			if (inputResourceID == null) {
 
@@ -136,7 +154,7 @@ public class Init implements Callable<String> {
 			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, APIStatics.UTF_8));
 			final JsonObject configurationJSON = configurationJsonReader.readObject();
 			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			LOG.info(String.format("[%s] configuration id = %s", serviceName, configurationID));
+			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, configurationID));
 
 			if (configurationID == null) {
 
@@ -148,9 +166,8 @@ public class Init implements Callable<String> {
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription,
-					serviceName,
-					engineDswarmAPI);
+			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription, serviceName,
+					engineDswarmAPI, doIngest);
 
 			if (dataModelJSONString == null) {
 
@@ -162,7 +179,7 @@ public class Init implements Callable<String> {
 			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
 			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
 			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			LOG.info(String.format("[%s] configuration id = %s", serviceName, dataModelID));
+			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, dataModelID));
 
 			if (dataModelID == null) {
 
@@ -173,7 +190,7 @@ public class Init implements Callable<String> {
 
 			// we don't need to transform after each ingest of a slice of records,
 			// so transform and export will be done separately
-			LOG.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+			LOG.info(String.format("[%s][%d] (Note: Only ingest, but no transformation or export done.)", serviceName, cnt));
 
 			final StringWriter stringWriter = new StringWriter();
 			final JsonGenerator jp = Json.createGenerator(stringWriter);
@@ -194,7 +211,8 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			LOG.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()),
+			LOG.error(String.format("[%s][%d] Processing resource '%s' failed with a %s", serviceName, cnt, initResourceFile,
+							e.getClass().getSimpleName()),
 					e);
 		}
 
@@ -230,14 +248,14 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
@@ -251,7 +269,7 @@ public class Init implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}
@@ -288,14 +306,14 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
@@ -309,7 +327,7 @@ public class Init implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}
@@ -337,23 +355,9 @@ public class Init implements Callable<String> {
 	 * @throws Exception
 	 */
 	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
-			final String serviceName,
-			final String engineDswarmAPI) throws Exception {
+			final String serviceName, final String engineDswarmAPI, final boolean doIngest) throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-
-			final boolean doIngest;
-
-			final String doIngestString = config.getProperty(TPUStatics.DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER);
-
-			if (doIngestString != null && !doIngestString.trim().isEmpty()) {
-
-				doIngest = Boolean.valueOf(doIngestString);
-			} else {
-
-				// default = true
-				doIngest = true;
-			}
 
 			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.QUESTION_MARK
 					+ DswarmBackendStatics.DO_DATA_MODEL_INGEST_IDENTIFIER + APIStatics.EQUALS + doIngest;
@@ -381,14 +385,14 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
@@ -402,7 +406,7 @@ public class Init implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}

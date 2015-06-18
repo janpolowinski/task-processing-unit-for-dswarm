@@ -102,12 +102,12 @@ public final class TPUUtil {
 	}
 
 	public static JsonObject doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
-			final Integer engineThreads, final Properties config)
+			final Integer engineThreads, final Properties config, final int cnt)
 			throws Exception {
 
 		final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
 
-		final String initResultJSONString = TPUUtil.executeInit(initResourceFile, serviceName, engineThreads, config);
+		final String initResultJSONString = TPUUtil.executeInit(initResourceFile, serviceName, engineThreads, config, cnt);
 
 		if (initResultJSONString == null) {
 
@@ -133,11 +133,10 @@ public final class TPUUtil {
 		return initResultJSON;
 	}
 
-	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config)
+	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config, final int cnt)
 			throws Exception {
 
 		// create job
-		final int cnt = 0;
 		final Callable<String> initTask = new Init(initResourceFile, config, cnt);
 
 		// work on jobs
@@ -158,7 +157,7 @@ public final class TPUUtil {
 
 				final String initResult = f.get();
 
-				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
+				final String message1 = String.format("[%s][%d] initResult = '%s'", serviceName, cnt, initResult);
 
 				LOG.info(message1);
 
@@ -167,7 +166,7 @@ public final class TPUUtil {
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			LOG.error("something went wrong", e);
+			LOG.error("[{]][{}] something went wrong", serviceName, cnt, e);
 		} finally {
 
 			pool.shutdown();

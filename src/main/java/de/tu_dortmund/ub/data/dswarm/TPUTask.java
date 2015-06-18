@@ -45,14 +45,15 @@ public class TPUTask implements Callable<String> {
 		try {
 
 			final Integer engineThreads = 1;
-			final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, watchFolderFile, serviceName, engineThreads, config);
+			final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, watchFolderFile, serviceName, engineThreads, config, cnt);
 
 			final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 
 			// input data model = output data model, i.e., for each data model a separate export file will be created
-			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName);
+			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName, cnt);
 
-			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, watchFolderFile, inputDataModelID);
+			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, watchFolderFile,
+					inputDataModelID);
 		} catch (final Exception e) {
 
 			final String message = String.format("[%s] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, watchFolderFile);
@@ -65,13 +66,13 @@ public class TPUTask implements Callable<String> {
 
 	private static void executeTransformation(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
 			final Properties config,
-			final String serviceName) {
+			final String serviceName, final int cnt) {
 
 		// create job
 		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.FALSE);
 		final Optional<Boolean> optionalDoIngestOnTheFly = Optional.of(Boolean.TRUE);
 		final Callable<String> transformTask = new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly,
-				optionalDoExportOnTheFly);
+				optionalDoExportOnTheFly, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,

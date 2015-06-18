@@ -161,6 +161,8 @@ public final class TaskProcessingUnit {
 
 		for (final String watchFolderFile : watchFolderFiles) {
 
+			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", cnt, watchFolderFile);
+
 			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, serviceName, cnt));
 
 			cnt++;
@@ -364,7 +366,7 @@ public final class TaskProcessingUnit {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
-		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly));
+		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, 0));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
@@ -430,7 +432,7 @@ public final class TaskProcessingUnit {
 			final Integer engineThreads, final Properties config, final Map<String, String> inputDataModelsAndResources)
 			throws Exception {
 
-		final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config);
+		final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, 0);
 
 		final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
