@@ -48,6 +48,7 @@ public class TPUTask implements Callable<String> {
 
 			final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 
+			// input data model = output data model, i.e., for each data model a separate export file will be created
 			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName);
 
 			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s'", serviceName, cnt, watchFolderFile);

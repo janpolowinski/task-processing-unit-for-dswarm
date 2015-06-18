@@ -30,6 +30,10 @@ prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
 
 # enables init part (i.e. resource + data model creation)
 init.do=true
+# if disable, task.do_ingest_on_the_fly needs to enabled
+init.data_model.do_ingest=false
+# if enable, task.do_ingest_on_the_fly needs to be enabled
+init.multiple_data_models=true
 # enables ingest (i.e. upload of data resources + ingest into given data model (in the data hub)
 ingest.do=true
 # enables task execution (on the given data model with the given mappings into the given output data model)
