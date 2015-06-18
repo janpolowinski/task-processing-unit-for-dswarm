@@ -228,26 +228,26 @@ public class Transform implements Callable<String> {
 			}
 
 			httpPost.setHeader(HttpHeaders.ACCEPT, mimetype);
-			httpPost.setHeader(HttpHeaders.TRANSFER_ENCODING, CHUNKED_TRANSFER_ENCODING);
+			//httpPost.setHeader(HttpHeaders.TRANSFER_ENCODING, CHUNKED_TRANSFER_ENCODING);
 
 			httpPost.setEntity(stringEntity);
 
-			final Header[] headers = httpPost.getAllHeaders();
-
-			final StringBuilder sb = new StringBuilder();
-
-			for (final Header header : headers) {
-
-				final String name = header.getName();
-				final String value = header.getValue();
-
-				sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
-			}
-
-			LOG.info(String.format("[%s][%d] request : %s :: headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
-					sb.toString(), stringEntity));
-
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+
+				final Header[] headers = httpResponse.getAllHeaders();
+
+				final StringBuilder sb = new StringBuilder();
+
+				for (final Header header : headers) {
+
+					final String name = header.getName();
+					final String value = header.getValue();
+
+					sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
+				}
+
+				LOG.info(String.format("[%s][%d] request : %s :: headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
+						sb.toString(), stringEntity));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
