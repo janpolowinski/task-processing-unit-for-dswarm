@@ -52,11 +52,11 @@ public class TPUTask implements Callable<String> {
 			// input data model = output data model, i.e., for each data model a separate export file will be created
 			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName, cnt);
 
-			return String.format("[%s] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, watchFolderFile,
+			return String.format("[%s][%d] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, cnt, watchFolderFile,
 					inputDataModelID);
 		} catch (final Exception e) {
 
-			final String message = String.format("[%s] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, watchFolderFile);
+			final String message = String.format("[%s][%d] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, cnt, watchFolderFile);
 
 			LOG.error(message, e);
 
@@ -92,14 +92,14 @@ public class TPUTask implements Callable<String> {
 
 				final String message = f.get();
 
-				final String message1 = String.format("[%s] %s", serviceName, message);
+				final String message1 = String.format("[%s][%d] %s", serviceName, cnt, message);
 
 				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			LOG.error("something went wrong", e);
+			LOG.error("[{}][{}] something went wrong", serviceName, cnt, e);
 
 		} finally {
 
