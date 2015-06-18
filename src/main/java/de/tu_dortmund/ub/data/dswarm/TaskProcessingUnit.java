@@ -140,6 +140,7 @@ public final class TaskProcessingUnit {
 		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
 		if (optionalDoInit.isPresent() && optionalDoInit.get() &&
+				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
 				optionalDoTransformations.isPresent() && optionalDoTransformations.get() &&
 				optionalDoIngestOnTheFly.isPresent() && optionalDoIngestOnTheFly.get() &&
 				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
