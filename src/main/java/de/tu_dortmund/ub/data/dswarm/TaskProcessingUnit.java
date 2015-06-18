@@ -31,10 +31,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -115,13 +118,13 @@ public final class TaskProcessingUnit {
 		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
-		String[] files = new File(resourceWatchFolder).list();
-		Arrays.sort(files);
+		String[] watchFolderFiles = new File(resourceWatchFolder).list();
+		Arrays.sort(watchFolderFiles);
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
 		logger.info(filesMessage);
-		logger.info(Arrays.toString(files));
+		logger.info(Arrays.toString(watchFolderFiles));
 
 		// Init time counter
 		final long global = System.currentTimeMillis();
@@ -131,49 +134,43 @@ public final class TaskProcessingUnit {
 		final String doInitString = config.getProperty(TPUStatics.DO_INIT_IDENTIFIER);
 		final boolean doInit = Boolean.parseBoolean(doInitString);
 
-		final String inputDataModelID;
-		final String resourceID;
+		// TODO: go multi thread, if ingest on-the-fly + export-on-the-fly is enabled as well
+		final String allowMultipleDataModelsString = config.getProperty(TPUStatics.ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER, Boolean.FALSE.toString());
+		final boolean allowMultipleDataModels = Boolean.parseBoolean(allowMultipleDataModelsString);
+
+		// keys = input data models; values = related data resources
+		final Map<String, String> inputDataModelsAndResources = new HashMap<>();
 
 		// init
-		if(doInit) {
-			
-			// use the first file in the folder for init
-			final String initResourceFileName = files[0];
-			final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
+		if (doInit) {
 
-			final String initResultJSONString = executeInit(initResourceFile, serviceName, engineThreads);
+			if (allowMultipleDataModels) {
 
-			if (initResultJSONString == null) {
+				for (int i = 0; i < watchFolderFiles.length; i++) {
 
-				final String message = "couldn't create data model";
+					final String initResourceFileName = watchFolderFiles[i];
 
-				logger.error(message);
+					doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, inputDataModelsAndResources);
 
-				throw new Exception(message);
+					// remove the file already processed during init from the files list to avoid duplicates
+					watchFolderFiles = ArrayUtils.removeElement(watchFolderFiles, initResourceFileName);
+				}
+			} else {
+
+				// use the first file in the folder for init
+				final String initResourceFileName = watchFolderFiles[0];
+
+				doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, inputDataModelsAndResources);
+
+				// remove the file already processed during init from the files list to avoid duplicates
+				watchFolderFiles = ArrayUtils.removeElement(watchFolderFiles, initResourceFileName);
 			}
-
-			final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
-			final JsonObject initResultJSON = initResultJsonReader.readObject();
-
-			if (initResultJSON == null) {
-
-				final String message = "couldn't create data model";
-
-				logger.error(message);
-
-				throw new Exception(message);
-			}
-
-			inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
-			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
-			
-			// remove the file already processed during init from the files list to avoid duplicates
-			files = ArrayUtils.removeElement(files, initResourceFileName);
-			
 		} else {
 
-			inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
-			resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
+			final String inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
+			final String resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
+
+			inputDataModelsAndResources.put(inputDataModelID, resourceID);
 
 			logger.info("skip init part");
 		}
@@ -186,7 +183,17 @@ public final class TaskProcessingUnit {
 
 			final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
 
-			executeIngests(files, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
+			if (!allowMultipleDataModels) {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+				final Map.Entry<String, String> entry = iterator.next();
+
+				final String inputDataModelID = entry.getKey();
+				final String resourceID = entry.getValue();
+
+				executeIngests(watchFolderFiles, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
+			}
 		} else {
 
 			logger.info("skip ingest");
@@ -200,7 +207,26 @@ public final class TaskProcessingUnit {
 		// task execution
 		if (doTransformations) {
 
-			executeTransform(inputDataModelID, outputDataModelID, engineThreads, serviceName);
+			if (allowMultipleDataModels) {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+
+				for (final Map.Entry<String, String> entry : entries) {
+
+					final String inputDataModelID = entry.getKey();
+
+					executeTransform(inputDataModelID, outputDataModelID, engineThreads, serviceName);
+				}
+			} else {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+				final Map.Entry<String, String> entry = iterator.next();
+
+				final String inputDataModelID = entry.getKey();
+
+				executeTransform(inputDataModelID, outputDataModelID, engineThreads, serviceName);
+			}
 		} else {
 
 			logger.info("skip transformations");
@@ -212,22 +238,28 @@ public final class TaskProcessingUnit {
 		// export
 		if (doExport) {
 
-			final String exportDataModelID;
+			if (!allowMultipleDataModels) {
 
-			if (outputDataModelID != null && !outputDataModelID.trim().isEmpty()) {
+				final String exportDataModelID;
 
-				exportDataModelID = outputDataModelID;
-			} else {
+				if (outputDataModelID != null && !outputDataModelID.trim().isEmpty()) {
 
-				exportDataModelID = inputDataModelID;
+					exportDataModelID = outputDataModelID;
+				} else {
+
+					final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+					final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+					final Map.Entry<String, String> entry = iterator.next();
+
+					exportDataModelID = entry.getKey();
+				}
+
+				executeExport(exportDataModelID, engineThreads, serviceName);
 			}
-
-			executeExport(exportDataModelID, engineThreads, serviceName);
 		} else {
 
 			logger.info("skip export");
 		}
-
 
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
@@ -243,7 +275,7 @@ public final class TaskProcessingUnit {
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -292,7 +324,7 @@ public final class TaskProcessingUnit {
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -326,7 +358,7 @@ public final class TaskProcessingUnit {
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -359,7 +391,7 @@ public final class TaskProcessingUnit {
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -382,5 +414,40 @@ public final class TaskProcessingUnit {
 
 			pool.shutdown();
 		}
+	}
+
+	private static void doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
+			final Integer engineThreads, final Map<String, String> inputDataModelsAndResources)
+			throws Exception {
+
+		final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
+
+		final String initResultJSONString = executeInit(initResourceFile, serviceName, engineThreads);
+
+		if (initResultJSONString == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
+		final JsonObject initResultJSON = initResultJsonReader.readObject();
+
+		if (initResultJSON == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
+		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+
+		inputDataModelsAndResources.put(inputDataModelID, resourceID);
 	}
 }
