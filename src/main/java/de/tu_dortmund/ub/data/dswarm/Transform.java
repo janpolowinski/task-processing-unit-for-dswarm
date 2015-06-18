@@ -72,11 +72,16 @@ public class Transform implements Callable<String> {
 	private final String             inputDataModelID;
 	private final String             outputDataModelID;
 	private final Collection<String> projectIDs;
+	private final Optional<Boolean>  optionalDoIngestOnTheFly;
+	private final Optional<Boolean>  optionalDoExportOnTheFly;
 
-	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID, final Logger logger) {
+	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID,
+			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final Logger logger) {
 
 		this.config = config;
 		this.logger = logger;
+		this.optionalDoIngestOnTheFly = optionalDoIngestOnTheFly;
+		this.optionalDoExportOnTheFly = optionalDoExportOnTheFly;
 
 		// init IDs of the prototype project
 
@@ -100,8 +105,6 @@ public class Transform implements Callable<String> {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
-		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
-		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
 		logger.info(String.format("[%s] Starting 'Transform (Task)' ...", serviceName));
 

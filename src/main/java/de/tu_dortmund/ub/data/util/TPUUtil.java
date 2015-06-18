@@ -6,9 +6,23 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+
+import de.tu_dortmund.ub.data.dswarm.Init;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -24,6 +38,7 @@ public final class TPUUtil {
 	public static final String EXPORT_FILE_NAME_PREFIX = "export-of-";
 	public static final String DOT                     = ".";
 	public static final String XML_FILE_ENDING         = "xml";
+	public static final String UTF_8                   = "UTF-8";
 
 	public static Optional<Boolean> getBooleanConfigValue(final String configKey, final Properties config) {
 
@@ -70,5 +85,79 @@ public final class TPUUtil {
 			bufferedOutputStream.close();
 			outputStream.close();
 		}
+	}
+
+	public static JsonObject doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
+			final Integer engineThreads, final Properties config)
+			throws Exception {
+
+		final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
+
+		final String initResultJSONString = TPUUtil.executeInit(initResourceFile, serviceName, engineThreads, config);
+
+		if (initResultJSONString == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
+		final JsonObject initResultJSON = initResultJsonReader.readObject();
+
+		if (initResultJSON == null) {
+
+			final String message = "couldn't create data model";
+
+			logger.error(message);
+
+			throw new Exception(message);
+		}
+
+		return initResultJSON;
+	}
+
+	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config) throws Exception {
+
+		// create job
+		final int cnt = 0;
+		final Callable<String> initTask = new Init(initResourceFile, config, logger, cnt);
+
+		// work on jobs
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
+				new LinkedBlockingQueue<>());
+
+		try {
+
+			final List<Callable<String>> tasks = new LinkedList<>();
+			tasks.add(initTask);
+
+			final List<Future<String>> futureList = pool.invokeAll(tasks);
+			final Iterator<Future<String>> iterator = futureList.iterator();
+
+			if (iterator.hasNext()) {
+
+				final Future<String> f = iterator.next();
+
+				final String initResult = f.get();
+
+				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
+
+				logger.info(message1);
+
+				return initResult;
+			}
+
+		} catch (final InterruptedException | ExecutionException e) {
+
+			logger.error("something went wrong", e);
+		} finally {
+
+			pool.shutdown();
+		}
+
+		return null;
 	}
 }
