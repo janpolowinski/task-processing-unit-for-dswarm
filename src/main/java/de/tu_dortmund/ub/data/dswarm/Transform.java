@@ -167,16 +167,26 @@ public class Transform implements Callable<String> {
 
 		if (optionalDoIngestOnTheFly.isPresent()) {
 
-			LOG.info(String.format("[%s][%d] do ingest on-the-fly", serviceName, cnt));
+			final Boolean doIngestOnTheFly = optionalDoIngestOnTheFly.get();
 
-			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, optionalDoIngestOnTheFly.get());
+			if (doIngestOnTheFly) {
+
+				LOG.info(String.format("[%s][%d] do ingest on-the-fly", serviceName, cnt));
+			}
+
+			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, doIngestOnTheFly);
 		}
 
 		if (optionalDoExportOnTheFly.isPresent()) {
 
-			LOG.info(String.format("[%s][%d] do export on-the-fly", serviceName, cnt));
+			final Boolean doExportOnTheFly = optionalDoExportOnTheFly.get();
 
-			jp.write(DswarmBackendStatics.DO_EXPORT_ON_THE_FLY, optionalDoExportOnTheFly.get());
+			if (doExportOnTheFly) {
+
+				LOG.info(String.format("[%s][%d] do export on-the-fly", serviceName, cnt));
+			}
+
+			jp.write(DswarmBackendStatics.DO_EXPORT_ON_THE_FLY, doExportOnTheFly);
 		}
 
 		jp.write(DswarmBackendStatics.DO_VERSIONING_ON_RESULT_IDENTIFIER, false);
@@ -240,7 +250,8 @@ public class Transform implements Callable<String> {
 				final String printedRequestHeaders = printHeaders(requestHeaders);
 				final String printedResponseHeaders = printHeaders(responseHeaders);
 
-				LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s' :: response headers : \n'%s'", serviceName, cnt, httpPost.getRequestLine(),
+				LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s' :: response headers : \n'%s'", serviceName,
+						cnt, httpPost.getRequestLine(),
 						printedRequestHeaders, stringEntity, printedResponseHeaders));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
@@ -399,7 +410,7 @@ public class Transform implements Callable<String> {
 						final JsonReader jsonReader = Json.createReader(content);
 						final JsonObject jsonObject = jsonReader.readObject();
 
-						LOG.info(String.format("[%s][%d] inputDataModel : %s", serviceName, cnt, jsonObject.toString()));
+						LOG.debug(String.format("[%s][%d] inputDataModel : %s", serviceName, cnt, jsonObject.toString()));
 
 						final JsonObject dataResourceJSON = jsonObject.getJsonObject(DswarmBackendStatics.DATA_RESOURCE_IDENTIFIER);
 
