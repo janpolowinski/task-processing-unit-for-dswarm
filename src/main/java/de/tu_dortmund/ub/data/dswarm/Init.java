@@ -179,7 +179,7 @@ public class Init implements Callable<String> {
 			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
 			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
 			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, dataModelID));
+			LOG.info(String.format("[%s][%d] data model id = %s", serviceName, cnt, dataModelID));
 
 			if (dataModelID == null) {
 

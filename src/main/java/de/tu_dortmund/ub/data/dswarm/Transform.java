@@ -242,17 +242,20 @@ public class Transform implements Callable<String> {
 
 			httpPost.setEntity(stringEntity);
 
+			final Header[] requestHeaders = httpPost.getAllHeaders();
+
+			final String printedRequestHeaders = printHeaders(requestHeaders);
+
+			LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
+					printedRequestHeaders, stringEntity));
+
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
-				final Header[] requestHeaders = httpPost.getAllHeaders();
 				final Header[] responseHeaders = httpResponse.getAllHeaders();
 
-				final String printedRequestHeaders = printHeaders(requestHeaders);
 				final String printedResponseHeaders = printHeaders(responseHeaders);
 
-				LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s' :: response headers : \n'%s'", serviceName,
-						cnt, httpPost.getRequestLine(),
-						printedRequestHeaders, stringEntity, printedResponseHeaders));
+				LOG.info(String.format("[%s][%d]  response headers : \n'%s'", serviceName, cnt, printedResponseHeaders));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
