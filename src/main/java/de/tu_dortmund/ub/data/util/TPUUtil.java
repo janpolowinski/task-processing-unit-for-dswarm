@@ -70,6 +70,22 @@ public final class TPUUtil {
 		return optionalConfigValue;
 	}
 
+	public static Optional<String> getStringConfigValue(final String configKey, final Properties config) {
+
+		final String configValue = config.getProperty(configKey);
+
+		final Optional<String> optionalConfigValue;
+
+		if (configValue != null && !configValue.trim().isEmpty()) {
+
+			optionalConfigValue = Optional.of(configValue);
+		} else {
+
+			optionalConfigValue = Optional.empty();
+		}
+		return optionalConfigValue;
+	}
+
 	public static void writeResultToFile(final CloseableHttpResponse httpResponse, final Properties config, final String exportDataModelID)
 			throws IOException {
 

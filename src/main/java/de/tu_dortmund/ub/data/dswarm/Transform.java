@@ -275,7 +275,7 @@ public class Transform implements Callable<String> {
 							LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 							// write result to file
-							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID);
+							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
 
 							return "success - exported XML";
 						}

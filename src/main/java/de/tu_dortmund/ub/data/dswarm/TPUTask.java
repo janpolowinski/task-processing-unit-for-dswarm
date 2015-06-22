@@ -25,17 +25,21 @@ public class TPUTask implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(TPUTask.class);
 
-	private final Properties config;
-	private final String     watchFolderFile;
-	private final String     resourceWatchFolder;
-	private final String     serviceName;
-	private final int        cnt;
+	private final Properties       config;
+	private final String           watchFolderFile;
+	private final String           resourceWatchFolder;
+	private final Optional<String> optionalOutputDataModelID;
+	private final String           serviceName;
+	private final int              cnt;
 
-	public TPUTask(final Properties config, final String watchFolderFile, final String resourceWatchFolder, final String serviceName, final int cnt) {
+	public TPUTask(final Properties config, final String watchFolderFile, final String resourceWatchFolder,
+			final Optional<String> optionalOutputDataModelID,
+			final String serviceName, final int cnt) {
 
 		this.config = config;
 		this.watchFolderFile = watchFolderFile;
 		this.resourceWatchFolder = resourceWatchFolder;
+		this.optionalOutputDataModelID = optionalOutputDataModelID;
 		this.serviceName = serviceName;
 		this.cnt = cnt;
 	}
@@ -49,14 +53,28 @@ public class TPUTask implements Callable<String> {
 
 			final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 
-			// input data model = output data model, i.e., for each data model a separate export file will be created
-			executeTransformation(inputDataModelID, inputDataModelID, engineThreads, config, serviceName, cnt);
+			final String outputDataModelID;
 
-			return String.format("[%s][%d] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, cnt, watchFolderFile,
-					inputDataModelID);
+			if (optionalOutputDataModelID.isPresent()) {
+
+				outputDataModelID = optionalOutputDataModelID.get();
+			} else {
+
+				LOG.info(
+						"[{}[{}] couldn't find output data model ID, will take input data model id instead for processing the task on source file '{}' and data model '{}' (note: this might cause wrong behaviour!)",
+						serviceName, cnt, watchFolderFile, inputDataModelID);
+
+				outputDataModelID = inputDataModelID;
+			}
+
+			executeTransformation(inputDataModelID, outputDataModelID, engineThreads, config, serviceName, cnt);
+
+			return String.format("[%s][%d] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, cnt,
+					watchFolderFile, inputDataModelID);
 		} catch (final Exception e) {
 
-			final String message = String.format("[%s][%d] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, cnt, watchFolderFile);
+			final String message = String
+					.format("[%s][%d] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, cnt, watchFolderFile);
 
 			LOG.error(message, e);
 

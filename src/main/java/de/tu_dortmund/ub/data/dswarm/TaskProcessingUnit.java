@@ -132,16 +132,19 @@ public final class TaskProcessingUnit {
 		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
 		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
+		final Optional<String> optionalOutputDataModelID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER, config);
+
 		if (optionalDoInit.isPresent() && optionalDoInit.get() &&
 				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
 				optionalDoTransformations.isPresent() && optionalDoTransformations.get() &&
 				optionalDoIngestOnTheFly.isPresent() && optionalDoIngestOnTheFly.get() &&
 				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-			executeTPUTask(watchFolderFiles, resourceWatchFolder, engineThreads, serviceName);
+			executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName);
 		} else {
 
-			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, serviceName,
+			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID,
+					serviceName,
 					engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
 		}
 
@@ -151,7 +154,8 @@ public final class TaskProcessingUnit {
 		LOG.info(tasksExecutedMessage);
 	}
 
-	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder, final Integer engineThreads,
+	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
+			final Optional<String> optionalOutputDataModelID, final Integer engineThreads,
 			final String serviceName) throws Exception {
 
 		// create job list
@@ -163,7 +167,7 @@ public final class TaskProcessingUnit {
 
 			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", serviceName, cnt, cnt, watchFolderFile);
 
-			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, serviceName, cnt));
+			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, optionalOutputDataModelID, serviceName, cnt));
 
 			cnt++;
 		}
@@ -196,7 +200,8 @@ public final class TaskProcessingUnit {
 	}
 
 	private static void executeTPUPartsOnDemand(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalAllowMultipleDataModels,
-			String[] watchFolderFiles, final String resourceWatchFolder, final String serviceName, final Integer engineThreads,
+			String[] watchFolderFiles, final String resourceWatchFolder, final Optional<String> optionalOutputDataModelID, final String serviceName,
+			final Integer engineThreads,
 			final Optional<Boolean> optionalDoTransformations, final Optional<Boolean> optionalDoIngestOnTheFly,
 			final Optional<Boolean> optionalDoExportOnTheFly) throws Exception {
 
@@ -260,7 +265,12 @@ public final class TaskProcessingUnit {
 			LOG.info("skip ingest");
 		}
 
-		final String outputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER);
+		if (!optionalOutputDataModelID.isPresent()) {
+
+			throw new Exception("please set an output data model ('prototype.outputDataModelID') for this TPU task");
+		}
+
+		final String outputDataModelID = optionalOutputDataModelID.get();
 
 		// task execution
 		if (optionalDoTransformations.isPresent() && optionalDoTransformations.get()) {
