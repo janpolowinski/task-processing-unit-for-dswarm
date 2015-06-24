@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -98,13 +99,24 @@ public class Transform implements Callable<String> {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
+		final String doIngestOnTheFlyString = config.getProperty(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER);
+		final Optional<Boolean> optionalDoIngestOnTheFly;
+
+		if (doIngestOnTheFlyString != null && !doIngestOnTheFlyString.trim().isEmpty()) {
+
+			optionalDoIngestOnTheFly = Optional.of(Boolean.valueOf(doIngestOnTheFlyString));
+		} else {
+
+			optionalDoIngestOnTheFly = Optional.empty();
+		}
 
 		logger.info(String.format("[%s] Starting 'Transform (Task)' ...", serviceName));
 
 		try {
 
 			// export and save to results folder
-			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI);
+			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI,
+					optionalDoIngestOnTheFly);
 			logger.debug(String.format("task execution result = '%s'", response));
 
 			return response;
@@ -126,8 +138,7 @@ public class Transform implements Callable<String> {
 	 * @return
 	 */
 	private String executeTask(final String inputDataModelID, final Collection<String> projectIDs, final String outputDataModelID,
-			final String serviceName,
-			final String engineDswarmAPI) throws Exception {
+			final String serviceName, final String engineDswarmAPI, final Optional<Boolean> optionalDoIngestOnTheFly) throws Exception {
 
 		final JsonArray mappings = getMappingsFromProjects(projectIDs, serviceName, engineDswarmAPI);
 		final JsonObject inputDataModel = getDataModel(inputDataModelID, serviceName, engineDswarmAPI);
@@ -153,6 +164,15 @@ public class Transform implements Callable<String> {
 		jp.write(DswarmBackendStatics.PERSIST_IDENTIFIER, persist);
 		// default for now: true, i.e., no content will be returned
 		jp.write(DswarmBackendStatics.DO_NOT_RETURN_DATA_IDENTIFIER, true);
+
+		if (optionalDoIngestOnTheFly.isPresent()) {
+
+			logger.info(String.format("[%s] do ingest on-the-fly", serviceName));
+
+			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, optionalDoIngestOnTheFly.get());
+		}
+
+		jp.write(DswarmBackendStatics.DO_VERSIONING_ON_RESULT_IDENTIFIER, false);
 
 		// task
 		jp.writeStartObject(DswarmBackendStatics.TASK_IDENTIFIER);

@@ -12,7 +12,6 @@ public final class TPUStatics {
 	public static final String PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER  = "prototype.dataModelID";
 	public static final String PROJECT_NAME_IDENTIFIER                   = "project.name";
 	public static final String CONFIGURATION_NAME_IDENTIFIER             = "configuration.name";
-	public static final String INIT_RESOURCE_NAME_IDENTIFIER             = "resource.initresource";
 	public static final String ENGINE_DSWARM_API_IDENTIFIER              = "engine.dswarm.api";
 	public static final String ENGINE_DSWARM_GRAPH_API_IDENTIFIER        = "engine.dswarm.graph.api";
 	public static final String DO_EXPORT_IDENTIFIER                      = "export.do";
@@ -26,4 +25,6 @@ public final class TPUStatics {
 	public static final String PROTOTYPE_PROJECT_IDS_INDENTIFIER         = "prototype.projectIDs";
 	public static final String PROTOTYPE_RESOURCE_ID_INDENTIFIER         = "prototype.resourceID";
 	public static final String PERSIST_IN_DMP_IDENTIFIER                 = "results.persistInDMP";
+	public static final String DO_INGEST_ON_THE_FLY_IDENTIFIER           = "task.do_ingest_on_the_fly";
+	public static final String DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER   = "init.data_model.do_ingest";
 }
