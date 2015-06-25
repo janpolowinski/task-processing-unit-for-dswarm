@@ -37,12 +37,17 @@ transform.do=true
 # enables xml export (from the given output data model)
 export.do=true
 
-# to do ingest on-the-flye at task execution time, you need to disable init and ingest part and provide a valid prototype dataModelID
+# to do ingest on-the-fly at task execution time, you need to disable init and ingest part and provide a valid prototype dataModelID
 task.do_ingest_on_the_fly=true
+
+# to do export on-the-fly at task execution time, you need to disable results.persistInDMP (otherwise, it would be written to the data hub)
+# + you need to disable export part (otherwise it would be exported twice)
+task.do_export_on_the_fly=true
 
 # results
 
 # (optionally) - only necessary, if transform part is enabled; i.e., task execution result will be stored in the data hub)
+# + if export part is enabled, this needs to be enabled as well (otherwise it wouldn't find any data in the data hubb for export)
 results.persistInDMP=false
 results.persistInFolder=true
 results.folder=data/LokSys/results
