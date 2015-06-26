@@ -13,6 +13,8 @@
 
 The task processing unit (TPU) is intented to process large amounts of data via [tasks](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#task) that make use of [mappings](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#mapping) that you have prepared and tested with the [D:SWARM backoffice webgui](https://github.com/dswarm/dswarm-documentation/wiki/Overview). So it can act as the production unit for D:SWARM, whereby the backoffice acts as development and/or testing unit (on smaller amounts of data).
 
+The TPU acts as client by calling the HTTP API of the D:SWARM backend.
+
 ## TPU Task
 
 A TPU task can consist of three parts, where by each part can be optional. These are:
@@ -37,7 +39,7 @@ For a (complete) TPU task execution you need to provide (at least):
 * a [metadata repository](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#metadata-repository) that contains the projects with the mappings that you would like to include into your task
 * the data resource(s) that should act as input for your task execution
 * the output data model (schema) where the data should be mapped to (usually this can be the same as it is utilised in the projects of the mappings)
-* 
+
 ## Configuration
 
 You can configure a TPU task with help of a properties file (`config.properties`). You don't need to configure each property for each processing scenario (maybe the properties will be simplified a bit in the future ;) ). Here is an overview of the configuration properties:
@@ -144,6 +146,46 @@ engine.dswarm.graph.api=http://example.com/graph/
 
 ## Execution
 
-	$JAVA_HOME/jre/bin/java -cp TaskProcessingUnit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
-  
+You can build the TPU with the following command (only required once, or when TPU code was updated):
 
+````
+mvn clean package
+````
+
+You can execute your TPU task with the following command:
+
+	$JAVA_HOME/jre/bin/java -cp TaskProcessingUnit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
+You need to ensure that (at least) the D:SWARM backend is running (+ (optionally) the data hub and D:SWARM graph exetension).  
+
+## Logging
+
+You can find logs of your TPU task exectutions in `[TPU HOME]/target/logs`.
+
+## Example Configuration for On-The-Fly Transform Processing
+
+The following configuration illustrates the property settings for a multi-threading ```on-the-fly transform``` processing scenario (i.e. input data ingest will be done on-the-fly before D:SWARM task execution + result export will be done immediately after the D:SWARM task execution):
+
+```
+service.name=deg-small-test-run
+project.name=degsmalltest
+resource.watchfolder=/data/source-data/DEG-small
+configuration.name=/home/dmp/config/oai-pmh-marc-xml-configuration.json
+prototype.projectIDs=9d6ec288-f1bf-4f96-78f6-5399e3050125,69664ba5-bbe5-6f35-7a77-47bacf9d3731
+prototype.outputDataModelID=5fddf2c5-916b-49dc-a07d-af04020c17f7
+init.do=true
+init.data_model.do_ingest=false
+init.multiple_data_models=true
+ingest.do=false
+transform.do=true
+task.do_ingest_on_the_fly=true
+task.do_export_on_the_fly=true
+export.do=false
+results.persistInDMP=false
+results.persistInFolder=true
+results.folder=/home/dmp/data/degsmalltest/results
+engine.threads=10
+engine.dswarm.api=http://localhost:8087/dmp/
+engine.dswarm.graph.api=http://localhost:7474/graph/
+```
+
+For this scenario the input data resource needs to be divided into multiple parts. Then each part will be executed as separate TPU task (and produce a separate export file).
