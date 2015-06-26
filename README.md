@@ -5,6 +5,7 @@
 ![UB Dortmund Logo](http://www.ub.tu-dortmund.de/images/ub-schriftzug.jpg)
 
 ---
+(in cooperation with [SLUB Dresden](http://slub-dresden.de) + [Avantgarde Labs](http://avantgarde-labs.de))
 
 # Task Processing Unit for [D:SWARM](http://dswarm.org)
 
