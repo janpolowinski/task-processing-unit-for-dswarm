@@ -440,6 +440,8 @@ public class Init implements Callable<String> {
 
 			if (optionalInputSchema.isPresent()) {
 
+				LOG.info("[{}][{}] add existing input schema to input data model", serviceName);
+
 				jp.write(DswarmBackendStatics.SCHEMA_IDENTIFIER, optionalInputSchema.get());
 			}
 
