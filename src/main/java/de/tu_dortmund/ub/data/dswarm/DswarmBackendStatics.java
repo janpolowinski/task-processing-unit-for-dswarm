@@ -9,11 +9,13 @@ public final class DswarmBackendStatics {
 	public static final String RESOURCES_ENDPOINT      = "resources";
 	public static final String CONFIGURATIONS_ENDPOINT = "configurations";
 	public static final String PROJECTS_ENDPOINT       = "projects";
+	public static final String SCHEMAS_ENDPOINT        = "schemas";
 	public static final String TASKS_ENDPOINT          = "tasks";
 
 	public static final String UUID_IDENTIFIER              = "uuid";
 	public static final String MAPPINGS_IDENTIFIER          = "mappings";
 	public static final String DATA_RESOURCE_IDENTIFIER     = "data_resource";
+	public static final String SCHEMA_IDENTIFIER            = "schema";
 	public static final String NAME_IDENTIFIER              = "name";
 	public static final String DESCRIPTION_IDENTIFIER       = "description";
 	public static final String TASK_IDENTIFIER              = "task";

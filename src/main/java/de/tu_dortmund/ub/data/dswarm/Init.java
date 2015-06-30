@@ -30,12 +30,12 @@ import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
 import javax.json.Json;
 import javax.json.JsonObject;
-import javax.json.JsonReader;
 import javax.json.stream.JsonGenerator;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
@@ -44,6 +44,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -123,69 +124,83 @@ public class Init implements Callable<String> {
 
 			if (inputResourceJson == null) {
 
-				LOG.error("something went wrong at resource creation");
+				final String message = "something went wrong at resource creation";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
 
-			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
-			final JsonObject inputResourceJSON = inputResourceJsonReader.readObject();
+			final JsonObject inputResourceJSON = TPUUtil.getJsonObject(inputResourceJson);
 			final String inputResourceID = inputResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			LOG.info(String.format("[%s][%d] input resource id = %s", serviceName, cnt, inputResourceID));
 
 			if (inputResourceID == null) {
 
-				LOG.error("something went wrong at resource creation, no resource uuid available");
+				final String message = "something went wrong at resource creation, no resource uuid available";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
 
+			// TODO: refactor this, so that a configuration only needs to be create once per TPU task
 			// create configuration
 			final String configurationFileName = config.getProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER);
 			final String configurationJSONString = createConfiguration(configurationFileName, serviceName, engineDswarmAPI);
 
 			if (configurationJSONString == null) {
 
-				LOG.error("something went wrong at configuration creation");
+				final String message = "something went wrong at configuration creation";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
 
-			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, APIStatics.UTF_8));
-			final JsonObject configurationJSON = configurationJsonReader.readObject();
+			final JsonObject configurationJSON = TPUUtil.getJsonObject(configurationJSONString);
 			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, configurationID));
 
 			if (configurationID == null) {
 
-				LOG.error("something went wrong at configuration creation, no configuration uuid available");
+				final String message = "something went wrong at configuration creation, no configuration uuid available";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
+
+			// check for existing input schema
+			final Optional<JsonObject> optionalInputSchema = getInputSchema(serviceName, engineDswarmAPI);
 
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription, serviceName,
+			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, optionalInputSchema, dataModelName,
+					dataModelDescription, serviceName,
 					engineDswarmAPI, doIngest);
 
 			if (dataModelJSONString == null) {
 
-				LOG.error("something went wrong at data model creation");
+				final String message = "something went wrong at data model creation";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
 
-			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
-			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
+			final JsonObject dataModelJSON = TPUUtil.getJsonObject(dataModelJSONString);
 			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			LOG.info(String.format("[%s][%d] data model id = %s", serviceName, cnt, dataModelID));
 
 			if (dataModelID == null) {
 
-				LOG.error("something went wrong at data model creation, no data model uuid available");
+				final String message = "something went wrong at data model creation, no data model uuid available";
 
-				return null;
+				LOG.error(message);
+
+				throw new RuntimeException(message);
 			}
 
 			// we don't need to transform after each ingest of a slice of records,
@@ -211,12 +226,13 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			LOG.error(String.format("[%s][%d] Processing resource '%s' failed with a %s", serviceName, cnt, initResourceFile,
-							e.getClass().getSimpleName()),
-					e);
-		}
+			final String message = String.format("[%s][%d] Processing resource '%s' failed with a %s", serviceName, cnt, initResourceFile,
+					e.getClass().getSimpleName());
 
-		return null;
+			LOG.error(message, e);
+
+			throw new RuntimeException(message, e);
+		}
 	}
 
 	/**
@@ -276,14 +292,14 @@ public class Init implements Callable<String> {
 					default: {
 
 						LOG.error(message);
+
+						EntityUtils.consume(httpEntity);
+
+						throw new Exception("something went wrong at resource upload: " + message);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 
 	/**
@@ -311,51 +327,100 @@ public class Init implements Callable<String> {
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
 
 				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
+
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 201: {
 
 						LOG.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String responseJson = writer.toString();
-						writer.flush();
-						writer.close();
 
-						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, response));
 
-						return responseJson;
+						return response;
 					}
 					default: {
 
 						LOG.error(message);
+
+						throw new Exception("something went wrong at configuration creation: " + message + " " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 
 	/**
-	 * creates a data model from given resource + configuration JSON
+	 * retrieves an existing input schema from a given schema identifier
+	 *
+	 * @return responseJson
+	 * @throws Exception
+	 */
+	private Optional<JsonObject> getInputSchema(final String serviceName, final String engineDswarmAPI) throws Exception {
+
+		final Optional<String> optionalInputSchemaID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_INPUT_SCHEMA_ID_IDENTIFIER, config);
+
+		if (!optionalInputSchemaID.isPresent()) {
+
+			return Optional.empty();
+		}
+
+		final String inputSchemaID = optionalInputSchemaID.get();
+
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+
+			final HttpGet httpGet = new HttpGet(engineDswarmAPI + DswarmBackendStatics.SCHEMAS_ENDPOINT + APIStatics.SLASH + inputSchemaID);
+
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpGet.getRequestLine()));
+
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
+
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
+						.getReasonPhrase());
+
+				final String response = TPUUtil.getResponseMessage(httpResponse);
+
+				switch (statusCode) {
+
+					case 200: {
+
+						LOG.info(message);
+
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, response));
+
+						return Optional.ofNullable(TPUUtil.getJsonObject(response));
+					}
+					default: {
+
+						LOG.error(message);
+
+						throw new Exception("something went wrong at input schema retrieval: " + message + " " + message);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * creates a data model from given resource + configuration JSON (+ optional input schema)
 	 *
 	 * @param resourceJSON
 	 * @param configurationJSON
-	 * @oaram name
+	 * @param optionalInputSchema
+	 * @param name
 	 * @param description
 	 * @return responseJson
 	 * @throws Exception
 	 */
-	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
-			final String serviceName, final String engineDswarmAPI, final boolean doIngest) throws Exception {
+	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final Optional<JsonObject> optionalInputSchema,
+			final String name, final String description, final String serviceName, final String engineDswarmAPI, final boolean doIngest)
+			throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
@@ -372,6 +437,12 @@ public class Init implements Callable<String> {
 			jp.write(DswarmBackendStatics.DESCRIPTION_IDENTIFIER, description);
 			jp.write(CONFIGURATION_IDENTIFIER, configurationJSON);
 			jp.write(DswarmBackendStatics.DATA_RESOURCE_IDENTIFIER, resourceJSON);
+
+			if (optionalInputSchema.isPresent()) {
+
+				jp.write(DswarmBackendStatics.SCHEMA_IDENTIFIER, optionalInputSchema.get());
+			}
+
 			jp.writeEnd();
 
 			jp.flush();
@@ -390,37 +461,31 @@ public class Init implements Callable<String> {
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
 
 				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
+
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 201: {
 
 						LOG.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String responseJson = writer.toString();
-						writer.flush();
-						writer.close();
 
-						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, response));
 
-						return responseJson;
+						return response;
 					}
 					default: {
 
 						LOG.error(message);
+
+						throw new Exception("something went wrong at data model creation: " + message + " " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 
 	private static String readFile(String path, Charset encoding) throws IOException {

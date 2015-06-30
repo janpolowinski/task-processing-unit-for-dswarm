@@ -63,9 +63,6 @@ public class Export implements Callable<String> {
 
 		LOG.info(String.format("[%s] Starting 'XML-Export (Task)' ...", serviceName));
 
-		// init process values
-		String message = null;
-
 		try {
 
 			TPUUtil.initSchemaIndices(serviceName, config);
@@ -73,13 +70,16 @@ public class Export implements Callable<String> {
 			// export and save to results folder
 			exportDataModel(exportDataModelID, serviceName);
 
+			return null;
 		} catch (final Exception e) {
 
-			LOG.error(String.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
-					.getSimpleName()), e);
-		}
+			final String message = String
+					.format("[%s] Exporting and saving datamodel '%s' failed with a %s", serviceName, exportDataModelID, e.getClass()
+							.getSimpleName());
+			LOG.error(message, e);
 
-		return message;
+			throw new RuntimeException(message, e);
+		}
 	}
 
 	/**
@@ -121,6 +121,10 @@ public class Export implements Callable<String> {
 					default: {
 
 						LOG.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+
+						final String response = TPUUtil.getResponseMessage(httpResponse);
+
+						throw new Exception("something went wrong at data model export: " + response);
 					}
 				}
 

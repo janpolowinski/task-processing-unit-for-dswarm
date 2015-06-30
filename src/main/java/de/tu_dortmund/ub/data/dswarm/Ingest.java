@@ -25,13 +25,13 @@ SOFTWARE.
 package de.tu_dortmund.ub.data.dswarm;
 
 import java.io.File;
-import java.io.StringWriter;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
 import javax.json.Json;
 import javax.json.JsonReader;
 
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -43,7 +43,6 @@ import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,9 +94,6 @@ public class Ingest implements Callable<String> {
 		final String dataModelID = this.dataModelID;
 		final String updateResourceID = resourceID;
 
-		// init process values
-		final String message = null;
-
 		try {
 			// build a InputDataModel for the resource
 			final String name = String.format("resource for project '%s'", resource);
@@ -129,14 +125,18 @@ public class Ingest implements Callable<String> {
 
 			// no need to clean up resources or datamodels anymore
 
+			LOG.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
+
+			return null;
 		} catch (final Exception e) {
 
-			LOG.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource, e.getClass().getSimpleName()), e);
+			final String message = String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource,
+					e.getClass().getSimpleName());
+
+			LOG.error(message, e);
+
+			throw new RuntimeException(message, e);
 		}
-
-		LOG.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
-
-		return message;
 	}
 
 	/**
@@ -178,6 +178,10 @@ public class Ingest implements Callable<String> {
 					default: {
 
 						LOG.error(message);
+
+						final String response = TPUUtil.getResponseMessage(httpResponse);
+
+						throw new Exception("something went wrong at data model export: " + message + " " + response);
 					}
 				}
 			}
@@ -227,36 +231,30 @@ public class Ingest implements Callable<String> {
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPut)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
 
 				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
+
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 200: {
 
 						LOG.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String responseJson = writer.toString();
-						writer.flush();
-						writer.close();
 
-						LOG.debug(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s] responseJson : %s", serviceName, response));
 
-						return responseJson;
+						return response;
 					}
 					default: {
 
 						LOG.error(message);
+
+						throw new Exception("something went wrong at data model export: " + message + " " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 }
