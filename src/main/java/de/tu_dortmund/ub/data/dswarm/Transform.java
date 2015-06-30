@@ -161,6 +161,8 @@ public class Transform implements Callable<String> {
 		jp.write(DswarmBackendStatics.PERSIST_IDENTIFIER, persist);
 		// default for now: true, i.e., no content will be returned
 		jp.write(DswarmBackendStatics.DO_NOT_RETURN_DATA_IDENTIFIER, true);
+		// default for now: true, i.e., if a schema is attached it will utilised (instead of being derived from the data resource)
+		jp.write(DswarmBackendStatics.UTILISE_EXISTING_INPUT_IDENTIFIER, true);
 
 		if (optionalDoIngestOnTheFly.isPresent()) {
 

@@ -30,5 +30,6 @@ public final class DswarmBackendStatics {
 	public static final String DO_INGEST_ON_THE_FLY               = "do_ingest_on_the_fly";
 	public static final String DO_EXPORT_ON_THE_FLY               = "do_export_on_the_fly";
 	public static final String DO_VERSIONING_ON_RESULT_IDENTIFIER = "do_versioning_on_result";
+	public static final String UTILISE_EXISTING_INPUT_IDENTIFIER  = "utilise_existing_input_schema";
 	public static final String DO_DATA_MODEL_INGEST_IDENTIFIER    = "doIngest";
 }
