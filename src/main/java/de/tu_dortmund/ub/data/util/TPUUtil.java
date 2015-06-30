@@ -94,10 +94,11 @@ public final class TPUUtil {
 
 		final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
 		final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
+		final HttpEntity entity = httpResponse.getEntity();
 
 		if (persistInFolder) {
 
-			final InputStream responseStream = httpResponse.getEntity().getContent();
+			final InputStream responseStream = entity.getContent();
 			final BufferedInputStream bis = new BufferedInputStream(responseStream, 1024);
 
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
@@ -116,6 +117,8 @@ public final class TPUUtil {
 			bufferedOutputStream.close();
 			outputStream.close();
 		}
+
+		EntityUtils.consume(entity);
 	}
 
 	public static JsonObject doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
