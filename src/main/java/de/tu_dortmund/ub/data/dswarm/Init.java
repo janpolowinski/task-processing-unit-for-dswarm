@@ -38,6 +38,7 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 import javax.json.stream.JsonGenerator;
 
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.Consts;
@@ -52,8 +53,8 @@ import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Init-Task for Task Processing Unit for d:swarm<br/>
@@ -66,41 +67,53 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Init implements Callable<String> {
 
-	public static final String MAINTAIN_ENDPOINT        = "maintain";
-	public static final String SCHEMA_INDICES_ENDPOINT  = "schemaindices";
+	private static final Logger LOG = LoggerFactory.getLogger(Init.class);
+
 	public static final String FILE_IDENTIFIER          = "file";
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
-	public static final String TEXT_PLAIN_MIMETYPE      = "text/plain";
 	public static final String DATA_MODEL_ID            = "data_model_id";
 	public static final String RESOURCE_ID              = "resource_id";
 
 	private final Properties config;
-	private final Logger     logger;
 	private final String     initResourceFile;
 	private final int        cnt;
 
-	public Init(final String initResourceFile, final Properties config, final Logger logger, final int cnt) {
+	public Init(final String initResourceFile, final Properties config, final int cnt) {
 
 		this.initResourceFile = initResourceFile;
 		this.config = config;
-		this.logger = logger;
 		this.cnt = cnt;
 	}
 
 	//    @Override
 	public String call() {
 
-		// init logger
-		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
-
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Init (Task)' ...", serviceName));
+		LOG.info(String.format("[%s][%d] Starting 'Init (Task)' ...", serviceName, cnt));
 
 		try {
 
-			initSchemaIndices(serviceName);
+			final boolean doIngest;
+
+			final String doIngestString = config.getProperty(TPUStatics.DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER);
+
+			if (doIngestString != null && !doIngestString.trim().isEmpty()) {
+
+				doIngest = Boolean.valueOf(doIngestString);
+			} else {
+
+				// default = true
+				doIngest = true;
+			}
+
+			if (doIngest) {
+
+				LOG.debug("[{}][{}] do data model creation with data ingest", serviceName, cnt);
+
+				TPUUtil.initSchemaIndices(serviceName, config);
+			}
 
 			// build a InputDataModel for the resource
 			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
@@ -110,7 +123,7 @@ public class Init implements Callable<String> {
 
 			if (inputResourceJson == null) {
 
-				logger.error("something went wrong at resource creation");
+				LOG.error("something went wrong at resource creation");
 
 				return null;
 			}
@@ -118,11 +131,11 @@ public class Init implements Callable<String> {
 			final JsonReader inputResourceJsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
 			final JsonObject inputResourceJSON = inputResourceJsonReader.readObject();
 			final String inputResourceID = inputResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] input resource id = %s", serviceName, inputResourceID));
+			LOG.info(String.format("[%s][%d] input resource id = %s", serviceName, cnt, inputResourceID));
 
 			if (inputResourceID == null) {
 
-				logger.error("something went wrong at resource creation, no resource uuid available");
+				LOG.error("something went wrong at resource creation, no resource uuid available");
 
 				return null;
 			}
@@ -133,7 +146,7 @@ public class Init implements Callable<String> {
 
 			if (configurationJSONString == null) {
 
-				logger.error("something went wrong at configuration creation");
+				LOG.error("something went wrong at configuration creation");
 
 				return null;
 			}
@@ -141,11 +154,11 @@ public class Init implements Callable<String> {
 			final JsonReader configurationJsonReader = Json.createReader(IOUtils.toInputStream(configurationJSONString, APIStatics.UTF_8));
 			final JsonObject configurationJSON = configurationJsonReader.readObject();
 			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] configuration id = %s", serviceName, configurationID));
+			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, configurationID));
 
 			if (configurationID == null) {
 
-				logger.error("something went wrong at configuration creation, no configuration uuid available");
+				LOG.error("something went wrong at configuration creation, no configuration uuid available");
 
 				return null;
 			}
@@ -153,13 +166,12 @@ public class Init implements Callable<String> {
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription,
-					serviceName,
-					engineDswarmAPI);
+			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, dataModelName, dataModelDescription, serviceName,
+					engineDswarmAPI, doIngest);
 
 			if (dataModelJSONString == null) {
 
-				logger.error("something went wrong at data model creation");
+				LOG.error("something went wrong at data model creation");
 
 				return null;
 			}
@@ -167,18 +179,18 @@ public class Init implements Callable<String> {
 			final JsonReader dataModelJsonReader = Json.createReader(IOUtils.toInputStream(dataModelJSONString, APIStatics.UTF_8));
 			final JsonObject dataModelJSON = dataModelJsonReader.readObject();
 			final String dataModelID = dataModelJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
-			logger.info(String.format("[%s] configuration id = %s", serviceName, dataModelID));
+			LOG.info(String.format("[%s][%d] data model id = %s", serviceName, cnt, dataModelID));
 
 			if (dataModelID == null) {
 
-				logger.error("something went wrong at data model creation, no data model uuid available");
+				LOG.error("something went wrong at data model creation, no data model uuid available");
 
 				return null;
 			}
 
 			// we don't need to transform after each ingest of a slice of records,
 			// so transform and export will be done separately
-			logger.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+			LOG.info(String.format("[%s][%d] (Note: Only ingest, but no transformation or export done.)", serviceName, cnt));
 
 			final StringWriter stringWriter = new StringWriter();
 			final JsonGenerator jp = Json.createGenerator(stringWriter);
@@ -199,7 +211,8 @@ public class Init implements Callable<String> {
 			return result;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Processing resource '%s' failed with a %s", serviceName, initResourceFile, e.getClass().getSimpleName()),
+			LOG.error(String.format("[%s][%d] Processing resource '%s' failed with a %s", serviceName, cnt, initResourceFile,
+							e.getClass().getSimpleName()),
 					e);
 		}
 
@@ -235,34 +248,34 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 
@@ -293,34 +306,34 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 
@@ -342,23 +355,9 @@ public class Init implements Callable<String> {
 	 * @throws Exception
 	 */
 	private String createDataModel(final JsonObject resourceJSON, final JsonObject configurationJSON, final String name, final String description,
-			final String serviceName,
-			final String engineDswarmAPI) throws Exception {
+			final String serviceName, final String engineDswarmAPI, final boolean doIngest) throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-
-			final boolean doIngest;
-
-			final String doIngestString = config.getProperty(TPUStatics.DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER);
-
-			if (doIngestString != null && !doIngestString.trim().isEmpty()) {
-
-				doIngest = Boolean.valueOf(doIngestString);
-			} else {
-
-				// default = true
-				doIngest = true;
-			}
 
 			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.QUESTION_MARK
 					+ DswarmBackendStatics.DO_DATA_MODEL_INGEST_IDENTIFIER + APIStatics.EQUALS + doIngest;
@@ -386,89 +385,34 @@ public class Init implements Callable<String> {
 
 			httpPost.setEntity(reqEntity);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpPost.getRequestLine()));
 
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
 
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+				final String message = String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
 
 				switch (statusCode) {
 
 					case 201: {
 
-						logger.info(message);
+						LOG.info(message);
 						final StringWriter writer = new StringWriter();
 						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
 						final String responseJson = writer.toString();
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						return responseJson;
 					}
 					default: {
 
-						logger.error(message);
-					}
-				}
-
-				EntityUtils.consume(httpEntity);
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * inits schema indices or ensures that they are there
-	 *
-	 * @param serviceName
-	 * @throws Exception
-	 */
-	private String initSchemaIndices(final String serviceName) throws Exception {
-
-		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
-
-			final String engineDswarmGraphAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_GRAPH_API_IDENTIFIER);
-
-			final HttpPost httpPost = new HttpPost(engineDswarmGraphAPI + MAINTAIN_ENDPOINT + APIStatics.SLASH + SCHEMA_INDICES_ENDPOINT);
-			final StringEntity reqEntity = new StringEntity("", ContentType.create(TEXT_PLAIN_MIMETYPE, Consts.UTF_8));
-
-			httpPost.setEntity(reqEntity);
-
-			logger.info(String.format("[%s] request : '%s'", serviceName, httpPost.getRequestLine()));
-
-			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
-
-				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
-
-				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
-						.getReasonPhrase());
-
-				switch (statusCode) {
-
-					case 200: {
-
-						logger.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String response = writer.toString();
-						writer.flush();
-						writer.close();
-
-						logger.info(String.format("[%s] response : '%s'", serviceName, response));
-
-						return response;
-					}
-					default: {
-
-						logger.error(message);
+						LOG.error(message);
 					}
 				}
 

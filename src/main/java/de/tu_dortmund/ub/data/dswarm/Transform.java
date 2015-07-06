@@ -45,6 +45,7 @@ import javax.json.stream.JsonGenerator;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.IOUtils;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -55,8 +56,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Export Task for Task Processing Unit for d:swarm
@@ -67,16 +68,25 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Transform implements Callable<String> {
 
+	private static final Logger LOG = LoggerFactory.getLogger(Transform.class);
+
+	public static final String CHUNKED_TRANSFER_ENCODING = "chunked";
+
 	private final Properties         config;
-	private final Logger             logger;
 	private final String             inputDataModelID;
 	private final String             outputDataModelID;
 	private final Collection<String> projectIDs;
+	private final Optional<Boolean>  optionalDoIngestOnTheFly;
+	private final Optional<Boolean>  optionalDoExportOnTheFly;
+	private final int                cnt;
 
-	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID, final Logger logger) {
+	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID,
+			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final int cnt) {
 
 		this.config = config;
-		this.logger = logger;
+		this.optionalDoIngestOnTheFly = optionalDoIngestOnTheFly;
+		this.optionalDoExportOnTheFly = optionalDoExportOnTheFly;
+		this.cnt = cnt;
 
 		// init IDs of the prototype project
 
@@ -95,27 +105,22 @@ public class Transform implements Callable<String> {
 	//    @Override
 	public String call() {
 
-		// init logger
-		PropertyConfigurator.configure(config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER));
-
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
-		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
-		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
-		logger.info(String.format("[%s] Starting 'Transform (Task)' ...", serviceName));
+		LOG.info(String.format("[%s][%d] Starting 'Transform (Task)' ...", serviceName, cnt));
 
 		try {
 
 			// export and save to results folder
 			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI,
 					optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
-			logger.debug(String.format("task execution result = '%s'", response));
+			LOG.debug(String.format("[%s][%d] task execution result = '%s'", serviceName, cnt, response));
 
 			return response;
 		} catch (final Exception e) {
 
-			logger.error(String.format("[%s] Transforming datamodel '%s' to '%s' failed with a %s", serviceName,
+			LOG.error(String.format("[%s][%d] Transforming datamodel '%s' to '%s' failed with a %s", serviceName, cnt,
 					inputDataModelID, outputDataModelID, e.getClass().getSimpleName()), e);
 		}
 
@@ -162,16 +167,26 @@ public class Transform implements Callable<String> {
 
 		if (optionalDoIngestOnTheFly.isPresent()) {
 
-			logger.info(String.format("[%s] do ingest on-the-fly", serviceName));
+			final Boolean doIngestOnTheFly = optionalDoIngestOnTheFly.get();
 
-			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, optionalDoIngestOnTheFly.get());
+			if (doIngestOnTheFly) {
+
+				LOG.info(String.format("[%s][%d] do ingest on-the-fly", serviceName, cnt));
+			}
+
+			jp.write(DswarmBackendStatics.DO_INGEST_ON_THE_FLY, doIngestOnTheFly);
 		}
 
 		if (optionalDoExportOnTheFly.isPresent()) {
 
-			logger.info(String.format("[%s] do export on-the-fly", serviceName));
+			final Boolean doExportOnTheFly = optionalDoExportOnTheFly.get();
 
-			jp.write(DswarmBackendStatics.DO_EXPORT_ON_THE_FLY, optionalDoExportOnTheFly.get());
+			if (doExportOnTheFly) {
+
+				LOG.info(String.format("[%s][%d] do export on-the-fly", serviceName, cnt));
+			}
+
+			jp.write(DswarmBackendStatics.DO_EXPORT_ON_THE_FLY, doExportOnTheFly);
 		}
 
 		jp.write(DswarmBackendStatics.DO_VERSIONING_ON_RESULT_IDENTIFIER, false);
@@ -203,27 +218,44 @@ public class Transform implements Callable<String> {
 		stringWriter.flush();
 		stringWriter.close();
 
-		logger.info(String.format("[%s] task : %s", serviceName, task));
+		LOG.debug(String.format("[%s][%d] task : %s", serviceName, cnt, task));
 
-		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			// POST /dmp/tasks/
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.TASKS_ENDPOINT);
 			final StringEntity stringEntity = new StringEntity(task, ContentType.APPLICATION_JSON);
+			stringEntity.setChunked(true);
+
+			final String mimetype;
 
 			if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_XML_MIMETYPE);
+				mimetype = APIStatics.APPLICATION_XML_MIMETYPE;
 			} else {
 
-				httpPost.setHeader(HttpHeaders.ACCEPT, APIStatics.APPLICATION_JSON_MIMETYPE);
+				mimetype = APIStatics.APPLICATION_JSON_MIMETYPE;
 			}
+
+			httpPost.setHeader(HttpHeaders.ACCEPT, mimetype);
+			//httpPost.setHeader(HttpHeaders.TRANSFER_ENCODING, CHUNKED_TRANSFER_ENCODING);
 
 			httpPost.setEntity(stringEntity);
 
-			logger.info(String.format("[%s] " + "request : %s", serviceName, httpPost.getRequestLine()));
+			final Header[] requestHeaders = httpPost.getAllHeaders();
 
-			try (CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+			final String printedRequestHeaders = printHeaders(requestHeaders);
+
+			LOG.info(String.format("[%s][%d] request : %s :: request headers : \n'%s' :: body : '%s'", serviceName, cnt, httpPost.getRequestLine(),
+					printedRequestHeaders, stringEntity));
+
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
+
+				final Header[] responseHeaders = httpResponse.getAllHeaders();
+
+				final String printedResponseHeaders = printHeaders(responseHeaders);
+
+				LOG.info(String.format("[%s][%d]  response headers : \n'%s'", serviceName, cnt, printedResponseHeaders));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
@@ -232,7 +264,7 @@ public class Transform implements Callable<String> {
 
 					case 204: {
 
-						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+						LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 						return "success";
 					}
@@ -240,17 +272,17 @@ public class Transform implements Callable<String> {
 
 						if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-							logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+							LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 							// write result to file
-							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID);
+							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
 
 							return "success - exported XML";
 						}
 					}
 					default: {
 
-						logger.info(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+						LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 						EntityUtils.consume(httpEntity);
 					}
@@ -259,6 +291,21 @@ public class Transform implements Callable<String> {
 		}
 
 		return null;
+	}
+
+	private String printHeaders(final Header[] headers) {
+
+		final StringBuilder sb = new StringBuilder();
+
+		for (final Header header : headers) {
+
+			final String name = header.getName();
+			final String value = header.getValue();
+
+			sb.append("\t\'").append(name).append("\' = \'").append(value).append("\'\n");
+		}
+
+		return sb.toString();
 	}
 
 	private JsonArray getMappingsFromProjects(final Collection<String> projectIDs, final String serviceName, final String engineDswarmAPI)
@@ -272,12 +319,12 @@ public class Transform implements Callable<String> {
 
 			if (projectMappings == null) {
 
-				logger.error(String.format("[%s] couldn't determine mappings from project '%s'", serviceName, projectID));
+				LOG.error(String.format("[%s][%d] couldn't determine mappings from project '%s'", serviceName, cnt, projectID));
 
 				continue;
 			}
 
-			logger.info(String.format("[%s] retrieved '%d' mappings from project '%s'", serviceName, projectMappings.size(), projectID));
+			LOG.info(String.format("[%s][%d] retrieved '%d' mappings from project '%s'", serviceName, cnt, projectMappings.size(), projectID));
 
 			for (final JsonValue projectMapping : projectMappings) {
 
@@ -287,22 +334,22 @@ public class Transform implements Callable<String> {
 
 		final JsonArray mappingsArray = mappingArrayBuilder.build();
 
-		logger.info(String.format("[%s] accumulated '%d' mappings from all projects", serviceName, mappingsArray.size()));
+		LOG.info(String.format("[%s][%d] accumulated '%d' mappings from all projects", serviceName, cnt, mappingsArray.size()));
 
 		return mappingsArray;
 	}
 
 	private JsonArray getMappingsFromProject(final String projectID, final String serviceName, final String engineDswarmAPI) throws Exception {
 
-		try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			// Hole Mappings aus dem Projekt mit 'projectID'
 			final String uri = engineDswarmAPI + DswarmBackendStatics.PROJECTS_ENDPOINT + APIStatics.SLASH + projectID;
 			final HttpGet httpGet = new HttpGet(uri);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpGet.getRequestLine()));
 
-			try (CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 				final HttpEntity httpEntity = httpResponse.getEntity();
@@ -317,20 +364,20 @@ public class Transform implements Callable<String> {
 						writer.flush();
 						writer.close();
 
-						logger.info(String.format("[%s] responseJson : %s", serviceName, responseJson));
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
 
 						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
 						final JsonObject jsonObject = jsonReader.readObject();
 
 						final JsonArray mappings = jsonObject.getJsonArray(DswarmBackendStatics.MAPPINGS_IDENTIFIER);
 
-						logger.info(String.format("[%s] mappings : %s", serviceName, mappings.toString()));
+						LOG.debug(String.format("[%s][%d] mappings : %s", serviceName, cnt, mappings.toString()));
 
 						return mappings;
 					}
 					default: {
 
-						logger.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 								.getReasonPhrase()));
 					}
 				}
@@ -350,7 +397,7 @@ public class Transform implements Callable<String> {
 			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID;
 			final HttpGet httpGet = new HttpGet(uri);
 
-			logger.info(String.format("[%s] request : %s", serviceName, httpGet.getRequestLine()));
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpGet.getRequestLine()));
 
 			try (CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
@@ -366,7 +413,7 @@ public class Transform implements Callable<String> {
 						final JsonReader jsonReader = Json.createReader(content);
 						final JsonObject jsonObject = jsonReader.readObject();
 
-						logger.info(String.format("[%s] inputDataModel : %s", serviceName, jsonObject.toString()));
+						LOG.debug(String.format("[%s][%d] inputDataModel : %s", serviceName, cnt, jsonObject.toString()));
 
 						final JsonObject dataResourceJSON = jsonObject.getJsonObject(DswarmBackendStatics.DATA_RESOURCE_IDENTIFIER);
 
@@ -374,14 +421,14 @@ public class Transform implements Callable<String> {
 
 							final String inputResourceID = dataResourceJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 
-							logger.info(String.format("[%s] inout resource ID : %s", serviceName, inputResourceID));
+							LOG.info(String.format("[%s][%d] inout resource ID : %s", serviceName, cnt, inputResourceID));
 						}
 
 						return jsonObject;
 					}
 					default: {
 
-						logger.error(String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 								.getReasonPhrase()));
 					}
 				}

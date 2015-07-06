@@ -31,10 +31,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -42,14 +46,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import javax.json.Json;
 import javax.json.JsonObject;
-import javax.json.JsonReader;
 
-import org.apache.commons.io.IOUtils;
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Task Processing Unit for d:swarm
@@ -60,12 +62,11 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public final class TaskProcessingUnit {
 
+	private static final Logger LOG = LoggerFactory.getLogger(TaskProcessingUnit.class);
+
 	private static final String     CONFIG_PROPERTIES_FILE_NAME = "config.properties";
 	private static final String     CONF_FOLDER_NAME            = "conf";
-	public static final  String     UTF_8                       = "UTF-8";
 	private static       Properties config                      = new Properties();
-
-	private static Logger logger = Logger.getLogger(TaskProcessingUnit.class.getName());
 
 	public static void main(final String[] args) throws Exception {
 
@@ -77,7 +78,7 @@ public final class TaskProcessingUnit {
 
 			for (final String arg : args) {
 
-				logger.info("arg = " + arg);
+				LOG.info("arg = " + arg);
 
 				if (arg.startsWith("-conf=")) {
 
@@ -91,190 +92,242 @@ public final class TaskProcessingUnit {
 
 			try (final InputStream inputStream = new FileInputStream(conffile)) {
 
-				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, UTF_8))) {
+				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, TPUUtil.UTF_8))) {
 
 					config.load(reader);
 				}
 			}
 		} catch (final IOException e) {
 
-			logger.error("something went wrong", e);
-			logger.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
+			LOG.error("something went wrong", e);
+			LOG.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
 		}
-
-		// init logger
-		PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
-		logger.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
-		logger.info(String.format("[%s] conf-file = %s", serviceName, conffile));
-
-		final String log4jConfFile = config.getProperty(TPUStatics.SERVICE_LOG4J_CONF_IDENTIFIER);
-
-		logger.info(String.format("[%s] log4j-conf-file = %s", serviceName, log4jConfFile));
+		LOG.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
+		LOG.info(String.format("[%s] conf-file = %s", serviceName, conffile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
-		String[] files = new File(resourceWatchFolder).list();
-		Arrays.sort(files);
+		String[] watchFolderFiles = new File(resourceWatchFolder).list();
+		Arrays.sort(watchFolderFiles);
 
 		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
 
-		logger.info(filesMessage);
-		logger.info(Arrays.toString(files));
+		LOG.info(filesMessage);
+		LOG.info(Arrays.toString(watchFolderFiles));
 
 		// Init time counter
 		final long global = System.currentTimeMillis();
 
 		final Integer engineThreads = Integer.parseInt(config.getProperty(TPUStatics.ENGINE_THREADS_IDENTIFIER));
 
-		final String doInitString = config.getProperty(TPUStatics.DO_INIT_IDENTIFIER);
-		final boolean doInit = Boolean.parseBoolean(doInitString);
+		final Optional<Boolean> optionalDoInit = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INIT_IDENTIFIER, config);
+		final Optional<Boolean> optionalDoTransformations = TPUUtil.getBooleanConfigValue(TPUStatics.DO_TRANSFORMATIONS_IDENTIFIER, config);
 
-		final String inputDataModelID;
-		final String resourceID;
+		// TODO: go multi threaded, if ingest on-the-fly + export-on-the-fly is enabled as well
+		final Optional<Boolean> optionalAllowMultipleDataModels = TPUUtil
+				.getBooleanConfigValue(TPUStatics.ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER, config);
 
-		// init
-		if(doInit) {
-			
-			// use the first file in the folder for init
-			final String initResourceFileName = files[0];
-			final String initResourceFile = resourceWatchFolder + File.separatorChar + initResourceFileName;
+		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
+		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 
-			final String initResultJSONString = executeInit(initResourceFile, serviceName, engineThreads);
+		final Optional<String> optionalOutputDataModelID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER, config);
 
-			if (initResultJSONString == null) {
+		if (optionalDoInit.isPresent() && optionalDoInit.get() &&
+				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
+				optionalDoTransformations.isPresent() && optionalDoTransformations.get() &&
+				optionalDoIngestOnTheFly.isPresent() && optionalDoIngestOnTheFly.get() &&
+				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-				final String message = "couldn't create data model";
-
-				logger.error(message);
-
-				throw new Exception(message);
-			}
-
-			final JsonReader initResultJsonReader = Json.createReader(IOUtils.toInputStream(initResultJSONString, UTF_8));
-			final JsonObject initResultJSON = initResultJsonReader.readObject();
-
-			if (initResultJSON == null) {
-
-				final String message = "couldn't create data model";
-
-				logger.error(message);
-
-				throw new Exception(message);
-			}
-
-			inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
-			resourceID = initResultJSON.getString(Init.RESOURCE_ID);
-			
-			// remove the file already processed during init from the files list to avoid duplicates
-			files = ArrayUtils.removeElement(files, initResourceFileName);
-			
+			executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName);
 		} else {
 
-			inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
-			resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
-
-			logger.info("skip init part");
+			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID,
+					serviceName,
+					engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
 		}
-
-		final String doIngestString = config.getProperty(TPUStatics.DO_INGEST_IDENTIFIER);
-		final boolean doIngest = Boolean.parseBoolean(doIngestString);
-
-		// ingest
-		if (doIngest) {
-
-			final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
-
-			executeIngests(files, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
-		} else {
-
-			logger.info("skip ingest");
-		}
-
-		final String outputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER);
-
-		final String doTransformationsString = config.getProperty(TPUStatics.DO_TRANSFORMATIONS_IDENTIFIER);
-		final boolean doTransformations = Boolean.parseBoolean(doTransformationsString);
-
-		// task execution
-		if (doTransformations) {
-
-			executeTransform(inputDataModelID, outputDataModelID, engineThreads, serviceName);
-		} else {
-
-			logger.info("skip transformations");
-		}
-
-		final String doExportString = config.getProperty(TPUStatics.DO_EXPORT_IDENTIFIER);
-		final boolean doExport = Boolean.parseBoolean(doExportString);
-
-		// export
-		if (doExport) {
-
-			final String exportDataModelID;
-
-			if (outputDataModelID != null && !outputDataModelID.trim().isEmpty()) {
-
-				exportDataModelID = outputDataModelID;
-			} else {
-
-				exportDataModelID = inputDataModelID;
-			}
-
-			executeExport(exportDataModelID, engineThreads, serviceName);
-		} else {
-
-			logger.info("skip export");
-		}
-
 
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
 						(System.currentTimeMillis() - global) / 1000));
-		logger.info(tasksExecutedMessage);
+		LOG.info(tasksExecutedMessage);
 	}
 
-	private static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads) throws Exception {
+	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
+			final Optional<String> optionalOutputDataModelID, final Integer engineThreads,
+			final String serviceName) throws Exception {
 
-		// create job
-		final int cnt = 0;
-		final Callable<String> initTask = new Init(initResourceFile, config, logger, cnt);
+		// create job list
+		final LinkedList<Callable<String>> transforms = new LinkedList<>();
+
+		int cnt = 1;
+
+		for (final String watchFolderFile : watchFolderFiles) {
+
+			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", serviceName, cnt, cnt, watchFolderFile);
+
+			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, optionalOutputDataModelID, serviceName, cnt));
+
+			cnt++;
+		}
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
-			final List<Callable<String>> tasks = new LinkedList<>();
-			tasks.add(initTask);
+			final List<Future<String>> futureList = pool.invokeAll(transforms);
 
-			final List<Future<String>> futureList = pool.invokeAll(tasks);
-			final Iterator<Future<String>> iterator = futureList.iterator();
+			for (final Future<String> f : futureList) {
 
-			if (iterator.hasNext()) {
+				final String message = f.get();
 
-				final Future<String> f = iterator.next();
+				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				final String initResult = f.get();
-
-				final String message1 = String.format("[%s] initResult = '%s'", serviceName, initResult);
-
-				logger.info(message1);
-
-				return initResult;
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
+
 		} finally {
 
 			pool.shutdown();
 		}
+	}
 
-		return null;
+	private static void executeTPUPartsOnDemand(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalAllowMultipleDataModels,
+			String[] watchFolderFiles, final String resourceWatchFolder, final Optional<String> optionalOutputDataModelID, final String serviceName,
+			final Integer engineThreads,
+			final Optional<Boolean> optionalDoTransformations, final Optional<Boolean> optionalDoIngestOnTheFly,
+			final Optional<Boolean> optionalDoExportOnTheFly) throws Exception {
+
+		// keys = input data models; values = related data resources
+		final Map<String, String> inputDataModelsAndResources = new HashMap<>();
+
+		// init
+		if (optionalDoInit.isPresent() && optionalDoInit.get()) {
+
+			if (optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get()) {
+
+				for (int i = 0; i < watchFolderFiles.length; i++) {
+
+					final String initResourceFileName = watchFolderFiles[i];
+
+					doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, inputDataModelsAndResources);
+
+					// remove the file already processed during init from the files list to avoid duplicates
+					watchFolderFiles = ArrayUtils.removeElement(watchFolderFiles, initResourceFileName);
+				}
+			} else {
+
+				// use the first file in the folder for init
+				final String initResourceFileName = watchFolderFiles[0];
+
+				doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, inputDataModelsAndResources);
+
+				// remove the file already processed during init from the files list to avoid duplicates
+				watchFolderFiles = ArrayUtils.removeElement(watchFolderFiles, initResourceFileName);
+			}
+		} else {
+
+			final String inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
+			final String resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
+
+			inputDataModelsAndResources.put(inputDataModelID, resourceID);
+
+			LOG.info("skip init part");
+		}
+
+		final Optional<Boolean> optionalDoIngest = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_IDENTIFIER, config);
+
+		// ingest
+		if (optionalDoIngest.isPresent() && optionalDoIngest.get()) {
+
+			final String projectName = config.getProperty(TPUStatics.PROJECT_NAME_IDENTIFIER);
+
+			if (!optionalAllowMultipleDataModels.isPresent() || !optionalAllowMultipleDataModels.get()) {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+				final Map.Entry<String, String> entry = iterator.next();
+
+				final String inputDataModelID = entry.getKey();
+				final String resourceID = entry.getValue();
+
+				executeIngests(watchFolderFiles, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
+			}
+		} else {
+
+			LOG.info("skip ingest");
+		}
+
+		if (!optionalOutputDataModelID.isPresent()) {
+
+			throw new Exception("please set an output data model ('prototype.outputDataModelID') for this TPU task");
+		}
+
+		final String outputDataModelID = optionalOutputDataModelID.get();
+
+		// task execution
+		if (optionalDoTransformations.isPresent() && optionalDoTransformations.get()) {
+
+			if (optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get()) {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+
+				for (final Map.Entry<String, String> entry : entries) {
+
+					final String inputDataModelID = entry.getKey();
+
+					executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads,
+							serviceName);
+				}
+			} else {
+
+				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+				final Map.Entry<String, String> entry = iterator.next();
+
+				final String inputDataModelID = entry.getKey();
+
+				executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads, serviceName);
+			}
+		} else {
+
+			LOG.info("skip transformations");
+		}
+
+		final Optional<Boolean> optionalDoExport = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_IDENTIFIER, config);
+
+		// export
+		if (optionalDoExport.isPresent() && optionalDoExport.get()) {
+
+			if (!optionalAllowMultipleDataModels.isPresent() || !optionalAllowMultipleDataModels.get()) {
+
+				final String exportDataModelID;
+
+				if (outputDataModelID != null && !outputDataModelID.trim().isEmpty()) {
+
+					exportDataModelID = outputDataModelID;
+				} else {
+
+					final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+					final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
+					final Map.Entry<String, String> entry = iterator.next();
+
+					exportDataModelID = entry.getKey();
+				}
+
+				executeExport(exportDataModelID, engineThreads, serviceName);
+			}
+		} else {
+
+			LOG.info("skip export");
+		}
 	}
 
 	private static void executeIngests(final String[] files, final String dataModelID, final String resourceID, final String projectName,
@@ -287,12 +340,12 @@ public final class TaskProcessingUnit {
 		for (final String file : files) {
 
 			cnt++;
-			filesToPush.add(new Ingest(config, logger, file, dataModelID, resourceID, projectName, cnt));
+			filesToPush.add(new Ingest(config, file, dataModelID, resourceID, projectName, cnt));
 		}
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -304,12 +357,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
@@ -317,16 +370,17 @@ public final class TaskProcessingUnit {
 		}
 	}
 
-	private static void executeTransform(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
+	private static void executeTransform(final String inputDataModelID, final String outputDataModelID,
+			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final Integer engineThreads,
 			final String serviceName) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
-		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, logger));
+		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, 0));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -338,12 +392,12 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
@@ -355,11 +409,11 @@ public final class TaskProcessingUnit {
 
 		// create job list
 		final LinkedList<Callable<String>> exports = new LinkedList<>();
-		exports.add(new Export(exportDataModelID, config, logger));
+		exports.add(new Export(exportDataModelID, config));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<Runnable>());
+				new LinkedBlockingQueue<>());
 
 		try {
 
@@ -371,16 +425,28 @@ public final class TaskProcessingUnit {
 
 				final String message1 = String.format("[%s] %s", serviceName, message);
 
-				logger.info(message1);
+				LOG.info(message1);
 			}
 
 		} catch (final InterruptedException | ExecutionException e) {
 
-			logger.error("something went wrong", e);
+			LOG.error("something went wrong", e);
 
 		} finally {
 
 			pool.shutdown();
 		}
+	}
+
+	private static void doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
+			final Integer engineThreads, final Properties config, final Map<String, String> inputDataModelsAndResources)
+			throws Exception {
+
+		final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, 0);
+
+		final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
+		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+
+		inputDataModelsAndResources.put(inputDataModelID, resourceID);
 	}
 }

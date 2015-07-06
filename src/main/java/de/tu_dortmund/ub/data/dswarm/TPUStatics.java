@@ -6,7 +6,6 @@ package de.tu_dortmund.ub.data.dswarm;
 public final class TPUStatics {
 
 	public static final String RESOURCE_WATCHFOLDER_IDENTIFIER           = "resource.watchfolder";
-	public static final String SERVICE_LOG4J_CONF_IDENTIFIER             = "service.log4j-conf";
 	public static final String SERVICE_NAME_IDENTIFIER                   = "service.name";
 	public static final String ENGINE_THREADS_IDENTIFIER                 = "engine.threads";
 	public static final String PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER  = "prototype.dataModelID";
@@ -28,4 +27,5 @@ public final class TPUStatics {
 	public static final String DO_INGEST_ON_THE_FLY_IDENTIFIER           = "task.do_ingest_on_the_fly";
 	public static final String DO_EXPORT_ON_THE_FLY_IDENTIFIER           = "task.do_export_on_the_fly";
 	public static final String DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER   = "init.data_model.do_ingest";
+	public static final String ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER     = "init.multiple_data_models";
 }
