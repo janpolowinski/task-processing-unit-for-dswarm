@@ -18,9 +18,9 @@ The TPU acts as client by calling the HTTP API of the D:SWARM backend.
 ## TPU Task
 
 A TPU task can consist of three parts, while each part can be optional. These are:
-* ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g. XML) with help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
+* ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
 * ```transform```: transforms data from an input data model via a task (which refers to a [job](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#job)) into an output data model
-* ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g. XML
+* ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g., XML
 
 ## Processing Scenarios
 
@@ -31,14 +31,14 @@ The task processing unit can be configured for various scenarios, e.g.,
 * ```on-the-fly transform``` (input data will be ingested (/generated) on-the-fly + export data will be directly returned from the transformation result, without storing it in the data hub)
 * any combination of the previous scenarios ;)
 
-The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario only supports XML export. So, if you would like to have an RDF export of your transformed data, then you need to run the TPU with the parameter for persisting the task execution result in the data hub (the current implementation of RDF-export does only work in combination with the data hub). The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can processed in parallel.
+The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario only supports XML export. So, if you would like to have an RDF export of your transformed data, then you need to run the TPU with the parameter for persisting the task execution result in the data hub (the current implementation of RDF export does only work in combination with the data hub). The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can processed in parallel.
 
 ## Requirements
 
 For a (complete) TPU task execution you need to provide (at least):
 * a [metadata repository](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#metadata-repository) that contains the projects with the mappings that you would like to include into your task
 * the data resource(s) that should act as input for your task execution
-* the output data model (schema) to which the data should be mapped to (usually this can be the same as it is utilized in the projects of the mappings)
+* the output data model (schema) to which the data should be mapped to (usually this can be the same as the one utilized in the mapping projects)
 
 ## Configuration
 
@@ -87,7 +87,7 @@ init.data_model.do_ingest=false
 # if enable, task.do_ingest_on_the_fly needs to be enabled
 init.multiple_data_models=true
 
-# enables ingest (i.e. upload of data resources + ingest into given data model (in the data hub)
+# enables ingest (i.e., upload of data resources + ingest into given data model (in the data hub)
 ingest.do=true
 
 #############
@@ -133,7 +133,7 @@ results.writeDMPJson=false
 ########################
 
 # the number of threads that should be utilized for execution the TPU task in parallel
-# currently, multi-threading can only be utilized for on-the-fly transform, i.e. init.do=true + init.data_model.do_ingest=false + init.multiple_data_models=true + ingest.do=false + transform.do=true +  task.do_ingest_on_the_fly=true + task.do_export_on_the_fly=true + export.do=false + results.persistInDMP=false
+# currently, multi-threading can only be utilized for on-the-fly transform, i.e., init.do=true + init.data_model.do_ingest=false + init.multiple_data_models=true + ingest.do=false + transform.do=true +  task.do_ingest_on_the_fly=true + task.do_export_on_the_fly=true + export.do=false + results.persistInDMP=false
 engine.threads=1
 
 # the base URL of the D:SWARM backend API
@@ -155,7 +155,7 @@ mvn clean package
 You can execute your TPU task with the following command:
 
 	$JAVA_HOME/jre/bin/java -cp TaskProcessingUnit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
-You need to ensure that (at least) the D:SWARM backend is running (+ (optionally) the data hub and D:SWARM graph extension).  
+You need to ensure that at least the D:SWARM backend is running (+ optionally, the data hub and D:SWARM graph extension).  
 
 ## Logging
 
@@ -163,7 +163,7 @@ You can find logs of your TPU task executions in `[TPU HOME]/target/logs`.
 
 ## Example Configuration for On-The-Fly Transform Processing
 
-The following configuration illustrates the property settings for a multi-threading ```on-the-fly transform``` processing scenario (i.e. input data ingest will be done on-the-fly before D:SWARM task execution + result export will be done immediately after the D:SWARM task execution):
+The following configuration illustrates the property settings for a multi-threading ```on-the-fly transform``` processing scenario (i.e., input data ingest will be done on-the-fly before D:SWARM task execution + result export will be done immediately after the D:SWARM task execution):
 
 ```
 service.name=deg-small-test-run
@@ -188,4 +188,4 @@ engine.dswarm.api=http://localhost:8087/dmp/
 engine.dswarm.graph.api=http://localhost:7474/graph/
 ```
 
-For this scenario the input data resource needs to be divided into multiple parts. Then each part will be executed as separate TPU task (and produce a separate export file).
+For this scenario, the input data resource needs to be divided into multiple parts. Then each part will be executed as a separate TPU task (and produce a separate export file).
