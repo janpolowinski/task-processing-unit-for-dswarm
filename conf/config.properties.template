@@ -8,31 +8,62 @@ project.name=LokSys
 resource.watchfolder=data/LokSys/resources
 resource.preprocessing=false
 
+configuration.name=/home/jan/git/task-processing-unit-for-dswarm/target/conf/oai-pmh-marc-xml-configuration.json
+
 # preprocessing for xml files
 preprocessing.xslt=xslt/cdata.xsl
 preprocessing.folder=data/tmp
 
+# optional - only necessary, if init part is skipped
+prototype.resourceID=Resource-f2b9e085-5b05-4853-ad82-06ce4fe1952d
+
 # prototype project
+
+# input data model id (optional - only necessary, if init part is skipped)
 prototype.dataModelID=bbd368e8-b75c-0e64-b96a-ab812a700b4f
+# optionally, only necessary, if transformation part is enabled
+# (for legacy reason) if one project delivers all mappings for the tasks
 prototype.projectID=819f2f6e-98ed-90e2-372e-71a0a1eec786
+# if multiple projects deliver the mappings for the task
+prototype.projectIDs=9d6ec288-f1bf-4f96-78f6-5399e3050125,69664ba5-bbe5-6f35-7a77-47bacf9d3731
 prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
 
+# enables init part (i.e. resource + data model creation)
+init.do=true
+# if disable, task.do_ingest_on_the_fly needs to enabled
+init.data_model.do_ingest=false
+# if enable, task.do_ingest_on_the_fly needs to be enabled
+init.multiple_data_models=true
+# enables ingest (i.e. upload of data resources + ingest into given data model (in the data hub)
+ingest.do=true
+# enables task execution (on the given data model with the given mappings into the given output data model)
+transform.do=true
+# enables xml export (from the given output data model)
+export.do=true
+
+# to do ingest on-the-fly at task execution time, you need to disable init and ingest part and provide a valid prototype dataModelID
+task.do_ingest_on_the_fly=true
+
+# to do export on-the-fly at task execution time, you need to disable results.persistInDMP (otherwise, it would be written to the data hub)
+# + you need to disable export part (otherwise it would be exported twice)
+task.do_export_on_the_fly=true
+
 # results
+
+# (optionally) - only necessary, if transform part is enabled; i.e., task execution result will be stored in the data hub)
+# + if export part is enabled, this needs to be enabled as well (otherwise it wouldn't find any data in the data hubb for export)
 results.persistInDMP=false
 results.persistInFolder=true
 results.folder=data/LokSys/results
+results.writeDMPJson=false
+# rdf format: turtle (default), xml, nquads, jsonld
+results.rdf.format=xml
+results.rdf.graph=http://data.ub.tu-dortmund.de/clossed/LMF/context/crossref
 
 ########################
 # Task Processing Unit #
 ########################
 engine.threads=1
 engine.dswarm.api=http://129.217.132.83:8080/dmp/
-
-######################
-# Service Parameters #
-######################
-
-service.name=d:swarm task execution engine
-# logging configuration
-service.log4j-conf=conf/log4j.properties
+engine.dswarm.graph.api=http://localhost:7474/graph/
 
