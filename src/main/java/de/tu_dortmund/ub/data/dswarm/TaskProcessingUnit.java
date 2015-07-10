@@ -63,14 +63,13 @@ public final class TaskProcessingUnit {
 
 	private static final Logger LOG = LoggerFactory.getLogger(TaskProcessingUnit.class);
 
-	private static final String     CONFIG_PROPERTIES_FILE_NAME = "config.properties";
-	private static final String     CONF_FOLDER_NAME            = "conf";
-	private static       Properties config                      = new Properties();
+	private static final String DEFAULT_CONFIG_PROPERTIES_FILE_NAME = "config.properties";
+	private static final String DEFAULT_CONF_FOLDER_NAME            = "conf";
 
 	public static void main(final String[] args) throws Exception {
 
-		// config
-		String conffile = CONF_FOLDER_NAME + File.separatorChar + CONFIG_PROPERTIES_FILE_NAME;
+		// default config
+		String configFile = DEFAULT_CONF_FOLDER_NAME + File.separatorChar + DEFAULT_CONFIG_PROPERTIES_FILE_NAME;
 
 		// read program parameters
 		if (args.length > 0) {
@@ -81,7 +80,7 @@ public final class TaskProcessingUnit {
 
 				if (arg.startsWith("-conf=")) {
 
-					conffile = arg.split("=")[1];
+					configFile = arg.split("=")[1];
 				}
 			}
 		}
@@ -89,23 +88,29 @@ public final class TaskProcessingUnit {
 		// Init properties
 		try {
 
-			try (final InputStream inputStream = new FileInputStream(conffile)) {
+			try (final InputStream inputStream = new FileInputStream(configFile)) {
 
 				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, TPUUtil.UTF_8))) {
 
+					final Properties config = new Properties();
 					config.load(reader);
+
+					startTPU(configFile, config);
 				}
 			}
 		} catch (final IOException e) {
 
 			LOG.error("something went wrong", e);
-			LOG.error(String.format("FATAL ERROR: Could not read '%s'!", conffile));
+			LOG.error(String.format("FATAL ERROR: Could not read '%s'!", configFile));
 		}
+	}
+
+	public static void startTPU(final String confFile, final Properties config) throws Exception {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
 		LOG.info(String.format("[%s] Starting 'Task Processing Unit' ...", serviceName));
-		LOG.info(String.format("[%s] conf-file = %s", serviceName, conffile));
+		LOG.info(String.format("[%s] conf-file = %s", serviceName, confFile));
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		String[] watchFolderFiles = new File(resourceWatchFolder).list();
@@ -123,28 +128,20 @@ public final class TaskProcessingUnit {
 
 		final Optional<Boolean> optionalDoInit = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INIT_IDENTIFIER, config);
 		final Optional<Boolean> optionalDoTransformations = TPUUtil.getBooleanConfigValue(TPUStatics.DO_TRANSFORMATIONS_IDENTIFIER, config);
-
-		// TODO: go multi threaded, if ingest on-the-fly + export-on-the-fly is enabled as well
-		final Optional<Boolean> optionalAllowMultipleDataModels = TPUUtil
-				.getBooleanConfigValue(TPUStatics.ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER, config);
-
+		final Optional<Boolean> optionalAllowMultipleDataModels = TPUUtil.getBooleanConfigValue(TPUStatics.ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER,
+				config);
 		final Optional<Boolean> optionalDoIngestOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_INGEST_ON_THE_FLY_IDENTIFIER, config);
 		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
-
 		final Optional<String> optionalOutputDataModelID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER, config);
 
-		if (optionalDoInit.isPresent() && optionalDoInit.get() &&
-				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
-				optionalDoTransformations.isPresent() && optionalDoTransformations.get() &&
-				optionalDoIngestOnTheFly.isPresent() && optionalDoIngestOnTheFly.get() &&
-				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
+		if (goMultiThreaded(optionalDoInit, optionalDoTransformations, optionalAllowMultipleDataModels, optionalDoIngestOnTheFly,
+				optionalDoExportOnTheFly)) {
 
-			executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName);
+			executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName, config);
 		} else {
 
 			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID,
-					serviceName,
-					engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
+					serviceName, engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, config);
 		}
 
 		final String tasksExecutedMessage = String
@@ -153,9 +150,20 @@ public final class TaskProcessingUnit {
 		LOG.info(tasksExecutedMessage);
 	}
 
+	private static boolean goMultiThreaded(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalDoTransformations,
+			final Optional<Boolean> optionalAllowMultipleDataModels, final Optional<Boolean> optionalDoIngestOnTheFly,
+			final Optional<Boolean> optionalDoExportOnTheFly) {
+
+		return optionalDoInit.isPresent() && optionalDoInit.get() &&
+				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
+				optionalDoTransformations.isPresent() && optionalDoTransformations.get() &&
+				optionalDoIngestOnTheFly.isPresent() && optionalDoIngestOnTheFly.get() &&
+				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get();
+	}
+
 	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
 			final Optional<String> optionalOutputDataModelID, final Integer engineThreads,
-			final String serviceName) throws Exception {
+			final String serviceName, final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
@@ -200,9 +208,8 @@ public final class TaskProcessingUnit {
 
 	private static void executeTPUPartsOnDemand(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalAllowMultipleDataModels,
 			String[] watchFolderFiles, final String resourceWatchFolder, final Optional<String> optionalOutputDataModelID, final String serviceName,
-			final Integer engineThreads,
-			final Optional<Boolean> optionalDoTransformations, final Optional<Boolean> optionalDoIngestOnTheFly,
-			final Optional<Boolean> optionalDoExportOnTheFly) throws Exception {
+			final Integer engineThreads, final Optional<Boolean> optionalDoTransformations, final Optional<Boolean> optionalDoIngestOnTheFly,
+			final Optional<Boolean> optionalDoExportOnTheFly, final Properties config) throws Exception {
 
 		// keys = input data models; values = related data resources
 		final Map<String, String> inputDataModelsAndResources = new HashMap<>();
@@ -257,7 +264,7 @@ public final class TaskProcessingUnit {
 				final String inputDataModelID = entry.getKey();
 				final String resourceID = entry.getValue();
 
-				executeIngests(watchFolderFiles, inputDataModelID, resourceID, projectName, serviceName, engineThreads);
+				executeIngests(watchFolderFiles, inputDataModelID, resourceID, projectName, serviceName, engineThreads, config);
 			}
 		} else {
 
@@ -283,7 +290,7 @@ public final class TaskProcessingUnit {
 					final String inputDataModelID = entry.getKey();
 
 					executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads,
-							serviceName);
+							serviceName, config);
 				}
 			} else {
 
@@ -293,7 +300,8 @@ public final class TaskProcessingUnit {
 
 				final String inputDataModelID = entry.getKey();
 
-				executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads, serviceName);
+				executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads, serviceName,
+						config);
 			}
 		} else {
 
@@ -321,7 +329,7 @@ public final class TaskProcessingUnit {
 					exportDataModelID = entry.getKey();
 				}
 
-				executeExport(exportDataModelID, engineThreads, serviceName);
+				executeExport(exportDataModelID, engineThreads, serviceName, config);
 			}
 		} else {
 
@@ -330,7 +338,7 @@ public final class TaskProcessingUnit {
 	}
 
 	private static void executeIngests(final String[] files, final String dataModelID, final String resourceID, final String projectName,
-			final String serviceName, final Integer engineThreads) throws Exception {
+			final String serviceName, final Integer engineThreads, final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
@@ -371,7 +379,7 @@ public final class TaskProcessingUnit {
 
 	private static void executeTransform(final String inputDataModelID, final String outputDataModelID,
 			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final Integer engineThreads,
-			final String serviceName) throws Exception {
+			final String serviceName, final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
@@ -404,7 +412,8 @@ public final class TaskProcessingUnit {
 		}
 	}
 
-	private static void executeExport(final String exportDataModelID, final Integer engineThreads, final String serviceName) throws Exception {
+	private static void executeExport(final String exportDataModelID, final Integer engineThreads, final String serviceName, final Properties config)
+			throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> exports = new LinkedList<>();
