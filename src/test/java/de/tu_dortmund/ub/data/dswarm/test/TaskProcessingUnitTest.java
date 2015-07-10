@@ -86,23 +86,49 @@ public class TaskProcessingUnitTest {
 	@Test
 	public void testTPUExceptionAtXMLData() {
 
-		final Properties config = generateDefaultConfig("TPU-test-1-exception-at-xml-data");
+		final String testName = "TPU-test-1";
+		final Properties config = generateDefaultConfig(testName + "-exception-at-xml-data");
 
 		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + "tputest1rwf";
 		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + "xml-configuration.json";
 
-		TaskProcessingUnitTest.LOG.debug("resource watch folder = '{}'", resourceWatchFolder);
-		TaskProcessingUnitTest.LOG.debug("configuration file name = '{}'", configurationFilePath);
+		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
+		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
 
 		config.setProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER, resourceWatchFolder);
 		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
 
-		final String confFile = "TPU-test-1-dummy-config.properties";
+		final String confFile = testName + "-dummy-config.properties";
 
-		executeTPUTest(confFile, config);
+		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; Premature end of file.";
+
+		executeTPUTest(testName, confFile, config, expectedErrorMessage);
 	}
 
-	private void executeTPUTest(final String confFile, final Properties config) {
+	@Test
+	public void testTPUWrongData() {
+
+		final String testName = "TPU-test-2";
+		final Properties config = generateDefaultConfig(testName + "-wrong-data");
+
+		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + "tputest2rwf";
+		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + "xml-configuration.json";
+
+		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
+		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
+
+		config.setProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER, resourceWatchFolder);
+		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
+
+		final String confFile = testName + "-dummy-config.properties";
+
+		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.";
+		executeTPUTest(testName, confFile, config, expectedErrorMessage);
+	}
+
+	private void executeTPUTest(final String testName, final String confFile, final Properties config, final String expectedErrorMessage) {
+
+		TaskProcessingUnitTest.LOG.info("start " + testName);
 
 		try {
 
@@ -129,9 +155,12 @@ public class TaskProcessingUnitTest {
 
 			final String cause4Message = cause4.getMessage();
 
-			Assert.assertTrue(cause4Message.startsWith(
-					"{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; Premature end of file."));
+			TaskProcessingUnitTest.LOG.debug("[{}] actual error message '{}'", testName, cause4Message);
+
+			Assert.assertTrue(cause4Message.startsWith(expectedErrorMessage));
 		}
+
+		TaskProcessingUnitTest.LOG.info("finished " + testName);
 	}
 
 	private Properties generateDefaultConfig(final String testName) {
