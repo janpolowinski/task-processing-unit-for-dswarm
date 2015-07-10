@@ -152,7 +152,7 @@ engine.dswarm.graph.api=http://example.com/graph/
 You can build the TPU with the following command (only required once, or when TPU code was updated):
 
 ````
-mvn clean package
+mvn clean package -DskipTests
 ````
 
 You can execute your TPU task with the following command:
