@@ -14,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * note: to execute the tests you first need to provide a D:SWARM backend and configure the API endpoint vie tpu.properties (parameter = 'dmp_api_endpoint')
+ *
  * @author tgaengler
  */
 public class TaskProcessingUnitTest {
@@ -82,9 +84,9 @@ public class TaskProcessingUnitTest {
 	}
 
 	@Test
-	public void testTPU() {
+	public void testTPUExceptionAtXMLData() {
 
-		final Properties config = generateDefaultConfig("TPU-test-1");
+		final Properties config = generateDefaultConfig("TPU-test-1-exception-at-xml-data");
 
 		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + "tputest1rwf";
 		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + "xml-configuration.json";
@@ -95,9 +97,16 @@ public class TaskProcessingUnitTest {
 		config.setProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER, resourceWatchFolder);
 		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
 
+		final String confFile = "TPU-test-1-dummy-config.properties";
+
+		executeTPUTest(confFile, config);
+	}
+
+	private void executeTPUTest(final String confFile, final Properties config) {
+
 		try {
 
-			final String result = TaskProcessingUnit.startTPU("TPU-test-1-dummy-config.properties", config);
+			final String result = TaskProcessingUnit.startTPU(confFile, config);
 
 			TaskProcessingUnitTest.LOG.debug(result);
 		} catch (final Exception e) {

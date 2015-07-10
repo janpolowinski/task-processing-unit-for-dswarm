@@ -162,7 +162,7 @@ You need to ensure that at least the D:SWARM backend is running (+ optionally, t
 
 ## Logging
 
-You can find logs of your TPU task executions in `[TPU HOME]/target/logs`.
+You can find logs of your TPU task executions in `[TPU HOME]/logs`.
 
 ## Example Configuration for On-The-Fly Transform Processing
 
