@@ -88,21 +88,11 @@ public class TaskProcessingUnitTest {
 
 		final String testName = "TPU-test-1";
 		final Properties config = generateDefaultConfig(testName + "-exception-at-xml-data");
+		final String resourceWatchFolderName = "tputest1rwf";
+		final String configFileName = "xml-configuration.json";
+		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; lineNumber: 3; columnNumber: 1; XML document structures must start and end within the same entity.";
 
-		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + "tputest1rwf";
-		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + "xml-configuration.json";
-
-		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
-		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
-
-		config.setProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER, resourceWatchFolder);
-		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
-
-		final String confFile = testName + "-dummy-config.properties";
-
-		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; Premature end of file.";
-
-		executeTPUTest(testName, confFile, config, expectedErrorMessage);
+		executeTPUTest(testName, config, resourceWatchFolderName, configFileName, expectedErrorMessage);
 	}
 
 	@Test
@@ -110,9 +100,29 @@ public class TaskProcessingUnitTest {
 
 		final String testName = "TPU-test-2";
 		final Properties config = generateDefaultConfig(testName + "-wrong-data");
+		final String resourceWatchFolderName = "tputest2rwf";
+		final String configFileName = "xml-configuration.json";
+		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.";
 
-		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + "tputest2rwf";
-		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + "xml-configuration.json";
+		executeTPUTest(testName, config, resourceWatchFolderName, configFileName, expectedErrorMessage);
+	}
+
+	@Test
+	public void testTPUEmptyFile() {
+
+		final String testName = "TPU-test-3";
+		final Properties config = generateDefaultConfig(testName + "-empty-file");
+		final String resourceWatchFolderName = "tputest3rwf";
+		final String configFileName = "xml-configuration.json";
+		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; Premature end of file.";
+
+		executeTPUTest(testName, config, resourceWatchFolderName, configFileName, expectedErrorMessage);
+	}
+
+	private void executeTPUTest(final String testName, final Properties config, final String resourceWatchFolderName, final String configigFileName, final String expectedErrorMessage) {
+
+		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + resourceWatchFolderName;
+		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + configigFileName;
 
 		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
 		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
@@ -121,8 +131,6 @@ public class TaskProcessingUnitTest {
 		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
 
 		final String confFile = testName + "-dummy-config.properties";
-
-		final String expectedErrorMessage = "{\"error\":{\"message\":\"couldn't process task (maybe XML export) successfully\",\"stacktrace\":\"org.culturegraph.mf.exceptions.MetafactureException: org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 1; Content is not allowed in prolog.";
 		executeTPUTest(testName, confFile, config, expectedErrorMessage);
 	}
 
