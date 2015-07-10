@@ -157,7 +157,7 @@ mvn clean package
 
 You can execute your TPU task with the following command:
 
-	$JAVA_HOME/jre/bin/java -cp TaskProcessingUnit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
+	$JAVA_HOME/jre/bin/java -cp taskprocessingunit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
 You need to ensure that at least the D:SWARM backend is running (+ optionally, the data hub and D:SWARM graph extension).  
 
 ## Logging
