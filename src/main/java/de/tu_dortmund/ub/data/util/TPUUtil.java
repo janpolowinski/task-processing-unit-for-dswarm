@@ -138,16 +138,18 @@ public final class TPUUtil {
 		return fileName;
 	}
 
-	private static void checkResultForError(String fileName) throws IOException, TPUException {
+	private static void checkResultForError(final String fileName) throws IOException, TPUException {
 
 		final Path filePath = Paths.get(fileName);
 		final char[] buffer = new char[MAX_BUFFER_LENGTH];
-		final BufferedReader bufferedReader = Files.newBufferedReader(filePath, Charsets.UTF_8);
+		BufferedReader bufferedReader = Files.newBufferedReader(filePath, Charsets.UTF_8);
 		final int readCharacters = bufferedReader.read(buffer, 0, MAX_BUFFER_LENGTH);
 
 		if(readCharacters <= -1) {
 
 			LOG.debug("couldn't check file for errors; no file content in file '{}'", fileName);
+
+			bufferedReader.close();
 
 			return;
 		}
@@ -156,6 +158,7 @@ public final class TPUUtil {
 
 		if(bufferString.startsWith(ERROR_MESSAGE_START)) {
 
+			bufferedReader.close();
 
 			throw new TPUException(bufferString);
 		}
