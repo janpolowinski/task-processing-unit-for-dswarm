@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.json.JsonObject;
 
+import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,22 +68,20 @@ public class TPUTask implements Callable<String> {
 				outputDataModelID = inputDataModelID;
 			}
 
-			executeTransformation(inputDataModelID, outputDataModelID, engineThreads, config, serviceName, cnt);
+			final String result = executeTransformation(inputDataModelID, outputDataModelID, engineThreads, config, serviceName, cnt);
 
-			return String.format("[%s][%d] TPU task execution '%d' succeeded for source file '%s' and data model '%s'", serviceName, cnt, cnt,
+			return String.format("[%s][%d] TPU task execution '%d' result = '%s' for source file '%s' and data model '%s'", serviceName, cnt, cnt, result,
 					watchFolderFile, inputDataModelID);
 		} catch (final Exception e) {
 
 			final String message = String
 					.format("[%s][%d] TPU task execution '%d' failed for source file '%s'", serviceName, cnt, cnt, watchFolderFile);
 
-			LOG.error(message, e);
-
-			return message;
+			throw new TPUException(message, e);
 		}
 	}
 
-	private static void executeTransformation(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
+	private static String executeTransformation(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
 			final Properties config,
 			final String serviceName, final int cnt) throws Exception {
 
@@ -104,22 +103,23 @@ public class TPUTask implements Callable<String> {
 			final List<Future<String>> futureList = pool.invokeAll(tasks);
 			final Iterator<Future<String>> iterator = futureList.iterator();
 
-			if (iterator.hasNext()) {
+			if (!iterator.hasNext()) {
 
-				final Future<String> f = iterator.next();
-
-				final String message = f.get();
-
-				final String message1 = String.format("[%s][%d] %s", serviceName, cnt, message);
-
-				LOG.info(message1);
+				return "no result";
 			}
 
+			final Future<String> f = iterator.next();
+
+			final String message = f.get();
+
+			final String message1 = String.format("[%s][%d] %s", serviceName, cnt, message);
+
+			LOG.info(message1);
+
+			return message;
 		} catch (final Exception e) {
 
-			LOG.error("[{}][{}] something went wrong", serviceName, cnt, e);
-
-			throw new Exception(e);
+			throw e;
 		} finally {
 
 			pool.shutdown();

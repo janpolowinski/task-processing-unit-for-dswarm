@@ -2,11 +2,15 @@ package de.tu_dortmund.ub.data.util;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -22,9 +26,11 @@ import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
 
+import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.dswarm.APIStatics;
 import de.tu_dortmund.ub.data.dswarm.Init;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
+import org.apache.commons.io.Charsets;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
@@ -52,6 +58,8 @@ public final class TPUUtil {
 	public static final String MAINTAIN_ENDPOINT       = "maintain";
 	public static final String SCHEMA_INDICES_ENDPOINT = "schemaindices";
 	public static final String TEXT_PLAIN_MIMETYPE     = "text/plain";
+	public static final int    MAX_BUFFER_LENGTH       = 10000;
+	public static final String ERROR_MESSAGE_START = "{\"error\":{\"message";
 
 	public static Optional<Boolean> getBooleanConfigValue(final String configKey, final Properties config) {
 
@@ -87,8 +95,8 @@ public final class TPUUtil {
 		return optionalConfigValue;
 	}
 
-	public static void writeResultToFile(final CloseableHttpResponse httpResponse, final Properties config, final String exportDataModelID)
-			throws IOException {
+	public static String writeResultToFile(final CloseableHttpResponse httpResponse, final Properties config, final String exportDataModelID)
+			throws IOException, TPUException {
 
 		LOG.info("try to write result to file");
 
@@ -96,13 +104,15 @@ public final class TPUUtil {
 		final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
 		final HttpEntity entity = httpResponse.getEntity();
 
+		final String fileName;
+
 		if (persistInFolder) {
 
 			final InputStream responseStream = entity.getContent();
 			final BufferedInputStream bis = new BufferedInputStream(responseStream, 1024);
 
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
-			final String fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
+			fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
 
 			LOG.info(String.format("start writing result to file '%s'", fileName));
 
@@ -116,9 +126,39 @@ public final class TPUUtil {
 			responseStream.close();
 			bufferedOutputStream.close();
 			outputStream.close();
+
+			checkResultForError(fileName);
+		} else {
+
+			fileName = "[no file name available]";
 		}
 
 		EntityUtils.consume(entity);
+
+		return fileName;
+	}
+
+	private static void checkResultForError(String fileName) throws IOException, TPUException {
+
+		final Path filePath = Paths.get(fileName);
+		final char[] buffer = new char[MAX_BUFFER_LENGTH];
+		final BufferedReader bufferedReader = Files.newBufferedReader(filePath, Charsets.UTF_8);
+		final int readCharacters = bufferedReader.read(buffer, 0, MAX_BUFFER_LENGTH);
+
+		if(readCharacters <= -1) {
+
+			LOG.debug("couldn't check file for errors; no file content in file '{}'", fileName);
+
+			return;
+		}
+
+		final String bufferString = String.valueOf(buffer);
+
+		if(bufferString.startsWith(ERROR_MESSAGE_START)) {
+
+
+			throw new TPUException(bufferString);
+		}
 	}
 
 	public static JsonObject doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
@@ -189,7 +229,7 @@ public final class TPUUtil {
 
 			LOG.error("[{]][{}] something went wrong at init part execution", serviceName, cnt, e);
 
-			throw new Exception(e);
+			throw e;
 		} finally {
 
 			pool.shutdown();

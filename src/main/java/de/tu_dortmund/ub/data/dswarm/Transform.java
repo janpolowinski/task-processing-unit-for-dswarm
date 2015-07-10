@@ -118,7 +118,6 @@ public class Transform implements Callable<String> {
 
 			final String message = String.format("[%s][%d] Transforming datamodel '%s' to '%s' failed with a %s", serviceName, cnt,
 					inputDataModelID, outputDataModelID, e.getClass().getSimpleName());
-			LOG.error(message, e);
 
 			throw new RuntimeException(message, e);
 		}
@@ -275,9 +274,9 @@ public class Transform implements Callable<String> {
 							LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 							// write result to file
-							TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
+							final String fileName = TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
 
-							return "success - exported XML";
+							return "success - exported XML to '" + fileName + "'";
 						}
 					}
 					default: {

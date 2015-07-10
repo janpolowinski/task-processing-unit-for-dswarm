@@ -85,6 +85,8 @@ public final class TaskProcessingUnit {
 			}
 		}
 
+		final Properties config;
+
 		// Init properties
 		try {
 
@@ -92,20 +94,22 @@ public final class TaskProcessingUnit {
 
 				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, TPUUtil.UTF_8))) {
 
-					final Properties config = new Properties();
+					config = new Properties();
 					config.load(reader);
-
-					startTPU(configFile, config);
 				}
 			}
 		} catch (final IOException e) {
 
 			LOG.error("something went wrong", e);
 			LOG.error(String.format("FATAL ERROR: Could not read '%s'!", configFile));
+
+			throw e;
 		}
+
+		startTPU(configFile, config);
 	}
 
-	public static void startTPU(final String confFile, final Properties config) throws Exception {
+	public static String startTPU(final String confFile, final Properties config) throws Exception {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 
@@ -134,20 +138,27 @@ public final class TaskProcessingUnit {
 		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 		final Optional<String> optionalOutputDataModelID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER, config);
 
+		final String result;
+
 		if (goMultiThreaded(optionalDoInit, optionalDoTransformations, optionalAllowMultipleDataModels, optionalDoIngestOnTheFly,
 				optionalDoExportOnTheFly)) {
 
-			executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName, config);
+			result = executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName, config);
 		} else {
 
 			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID,
 					serviceName, engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, config);
+
+			result = "[no result available]";
 		}
 
 		final String tasksExecutedMessage = String
 				.format("[%s] d:swarm tasks executed. (Processing time: %d s)", serviceName, (
 						(System.currentTimeMillis() - global) / 1000));
+
 		LOG.info(tasksExecutedMessage);
+
+		return result;
 	}
 
 	private static boolean goMultiThreaded(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalDoTransformations,
@@ -161,7 +172,7 @@ public final class TaskProcessingUnit {
 				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get();
 	}
 
-	private static void executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
+	private static String executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
 			final Optional<String> optionalOutputDataModelID, final Integer engineThreads,
 			final String serviceName, final Properties config) throws Exception {
 
@@ -187,19 +198,23 @@ public final class TaskProcessingUnit {
 
 			final List<Future<String>> futureList = pool.invokeAll(transforms);
 
+			final StringBuilder resultSB = new StringBuilder();
+
 			for (final Future<String> f : futureList) {
 
 				final String message = f.get();
 
-				final String message1 = String.format("[%s] %s", serviceName, message);
+				LOG.info(message);
 
-				LOG.info(message1);
+				resultSB.append(message).append("\n");
 			}
 
+			return resultSB.toString();
 		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
 
+			throw e;
 		} finally {
 
 			pool.shutdown();
@@ -371,6 +386,8 @@ public final class TaskProcessingUnit {
 
 			LOG.error("something went wrong", e);
 
+			throw e;
+
 		} finally {
 
 			pool.shutdown();
@@ -406,6 +423,8 @@ public final class TaskProcessingUnit {
 
 			LOG.error("something went wrong", e);
 
+			throw e;
+
 		} finally {
 
 			pool.shutdown();
@@ -439,6 +458,8 @@ public final class TaskProcessingUnit {
 		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
+
+			throw e;
 
 		} finally {
 
