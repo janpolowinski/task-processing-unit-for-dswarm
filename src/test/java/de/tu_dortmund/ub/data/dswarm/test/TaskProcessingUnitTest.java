@@ -3,7 +3,11 @@ package de.tu_dortmund.ub.data.dswarm.test;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Properties;
+import java.util.Set;
 
 import com.google.common.io.Resources;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
@@ -15,6 +19,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * note: to execute the tests you first need to provide a D:SWARM backend and configure the API endpoint vie tpu.properties (parameter = 'dmp_api_endpoint')
+ * + deploy the D:SWARM metadata repository dump at 'src/test/resources/metadata.sql' the D:SWARM instance that should be utilised for testing
+ * + you probably need to execute the tests via 'mvn clean test'.
  *
  * @author tgaengler
  */
@@ -119,10 +125,66 @@ public class TaskProcessingUnitTest {
 		executeTPUTest(testName, config, resourceWatchFolderName, configFileName, expectedErrorMessage);
 	}
 
-	private void executeTPUTest(final String testName, final Properties config, final String resourceWatchFolderName, final String configigFileName, final String expectedErrorMessage) {
+	@Test
+	public void testTPUEmptyFolder() {
+
+		final String testName = "TPU-test-4";
+		final Properties config = generateDefaultConfig(testName + "-empty-folder");
+		final String resourceWatchFolderName = "tputest4rwf";
+
+		final Path resourceWatchFolderPath = Paths.get(ROOT_PATH + File.separator + "target" + File.separator + resourceWatchFolderName);
+
+		try {
+
+			Files.createDirectory(resourceWatchFolderPath);
+		} catch (final IOException e) {
+
+			final String message = "couldn't create new folder for empty-folder test";
+
+			TaskProcessingUnitTest.LOG.error(message, e);
+
+			Assert.assertTrue(message, false);
+		}
+
+		final String configFileName = "xml-configuration.json";
+		final String resourceWatchFolder = resourceWatchFolderPath.toString();
+		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + configFileName;
+
+		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
+		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
+
+		config.setProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER, resourceWatchFolder);
+		config.setProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER, configurationFilePath);
+
+		final String confFile = testName + "-dummy-config.properties";
+		final String expectedErrorMessage = "could not determine files from watchfolder; there are no files in folder";
+
+		TaskProcessingUnitTest.LOG.info("start " + testName);
+
+		logConfig(config, testName);
+
+		try {
+
+			final String result = TaskProcessingUnit.startTPU(confFile, config);
+
+			TaskProcessingUnitTest.LOG.debug("[{}] task execution result = '{}'", testName, result);
+		} catch (final Exception e) {
+
+			final String causeMessage = e.getMessage();
+
+			TaskProcessingUnitTest.LOG.debug("[{}] actual error message '{}'", testName, causeMessage);
+
+			Assert.assertTrue(causeMessage.startsWith(expectedErrorMessage));
+		}
+
+		TaskProcessingUnitTest.LOG.info("finished " + testName);
+	}
+
+	private void executeTPUTest(final String testName, final Properties config, final String resourceWatchFolderName, final String configFileName,
+			final String expectedErrorMessage) {
 
 		final String resourceWatchFolder = TEST_RESOURCES_ROOT_PATH + File.separator + resourceWatchFolderName;
-		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + configigFileName;
+		final String configurationFilePath = TEST_RESOURCES_ROOT_PATH + File.separator + configFileName;
 
 		TaskProcessingUnitTest.LOG.debug("[{}] resource watch folder = '{}'", testName, resourceWatchFolder);
 		TaskProcessingUnitTest.LOG.debug("[{}] configuration file name = '{}'", testName, configurationFilePath);
@@ -138,11 +200,13 @@ public class TaskProcessingUnitTest {
 
 		TaskProcessingUnitTest.LOG.info("start " + testName);
 
+		logConfig(config, testName);
+
 		try {
 
 			final String result = TaskProcessingUnit.startTPU(confFile, config);
 
-			TaskProcessingUnitTest.LOG.debug(result);
+			TaskProcessingUnitTest.LOG.debug("[{}] task execution result = '{}'", testName, result);
 		} catch (final Exception e) {
 
 			final Throwable cause1 = e.getCause();
@@ -169,6 +233,22 @@ public class TaskProcessingUnitTest {
 		}
 
 		TaskProcessingUnitTest.LOG.info("finished " + testName);
+	}
+
+	private void logConfig(final Properties config, final String testName) {
+
+		final StringBuilder configSB = new StringBuilder();
+
+		final Set<String> stringPropertyNames = config.stringPropertyNames();
+
+		for (final String stringPropertyName : stringPropertyNames) {
+
+			final String property = config.getProperty(stringPropertyName);
+
+			configSB.append("\t'").append(stringPropertyName).append("' = '").append(property).append("'\n");
+		}
+
+		LOG.debug("[{}] result try to execute TPU task with following config\n{}", testName, configSB.toString());
 	}
 
 	private Properties generateDefaultConfig(final String testName) {

@@ -47,6 +47,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.json.JsonObject;
 
+import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -118,12 +119,33 @@ public final class TaskProcessingUnit {
 
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		String[] watchFolderFiles = new File(resourceWatchFolder).list();
+
+		if(watchFolderFiles == null) {
+
+			final String message = String
+					.format("could not determine files from watchfolder '%s'; watch folder file list does not exist", resourceWatchFolder);
+
+			TaskProcessingUnit.LOG.error(message);
+
+			throw new TPUException(message);
+		}
+
+		if(watchFolderFiles.length == 0) {
+
+			final String message = String
+					.format("could not determine files from watchfolder; there are no files in folder '%s'", resourceWatchFolder);
+
+			TaskProcessingUnit.LOG.error(message);
+
+			throw new TPUException(message);
+		}
+
 		Arrays.sort(watchFolderFiles);
 
-		final String filesMessage = String.format("[%s] Files in %s", serviceName, resourceWatchFolder);
+		final String filesMessage = String.format("[%s] '%s' files in resource watch folder '%s'", serviceName, watchFolderFiles.length, resourceWatchFolder);
 
 		LOG.info(filesMessage);
-		LOG.info(Arrays.toString(watchFolderFiles));
+		LOG.info("\tfile names: '" + Arrays.toString(watchFolderFiles) + "'");
 
 		// Init time counter
 		final long global = System.currentTimeMillis();
