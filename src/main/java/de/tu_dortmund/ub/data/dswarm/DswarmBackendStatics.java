@@ -9,11 +9,13 @@ public final class DswarmBackendStatics {
 	public static final String RESOURCES_ENDPOINT      = "resources";
 	public static final String CONFIGURATIONS_ENDPOINT = "configurations";
 	public static final String PROJECTS_ENDPOINT       = "projects";
+	public static final String SCHEMAS_ENDPOINT        = "schemas";
 	public static final String TASKS_ENDPOINT          = "tasks";
 
 	public static final String UUID_IDENTIFIER              = "uuid";
 	public static final String MAPPINGS_IDENTIFIER          = "mappings";
 	public static final String DATA_RESOURCE_IDENTIFIER     = "data_resource";
+	public static final String SCHEMA_IDENTIFIER            = "schema";
 	public static final String NAME_IDENTIFIER              = "name";
 	public static final String DESCRIPTION_IDENTIFIER       = "description";
 	public static final String TASK_IDENTIFIER              = "task";
@@ -28,5 +30,6 @@ public final class DswarmBackendStatics {
 	public static final String DO_INGEST_ON_THE_FLY               = "do_ingest_on_the_fly";
 	public static final String DO_EXPORT_ON_THE_FLY               = "do_export_on_the_fly";
 	public static final String DO_VERSIONING_ON_RESULT_IDENTIFIER = "do_versioning_on_result";
+	public static final String UTILISE_EXISTING_INPUT_IDENTIFIER  = "utilise_existing_input_schema";
 	public static final String DO_DATA_MODEL_INGEST_IDENTIFIER    = "doIngest";
 }

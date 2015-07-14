@@ -84,7 +84,7 @@ public class TPUTask implements Callable<String> {
 
 	private static void executeTransformation(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
 			final Properties config,
-			final String serviceName, final int cnt) {
+			final String serviceName, final int cnt) throws Exception {
 
 		// create job
 		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.TRUE);
@@ -115,10 +115,11 @@ public class TPUTask implements Callable<String> {
 				LOG.info(message1);
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
 			LOG.error("[{}][{}] something went wrong", serviceName, cnt, e);
 
+			throw new Exception(e);
 		} finally {
 
 			pool.shutdown();

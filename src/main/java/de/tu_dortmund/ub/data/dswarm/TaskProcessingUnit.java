@@ -40,7 +40,6 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -189,7 +188,7 @@ public final class TaskProcessingUnit {
 				LOG.info(message1);
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
 
@@ -360,7 +359,7 @@ public final class TaskProcessingUnit {
 				LOG.info(message1);
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
 
@@ -395,7 +394,7 @@ public final class TaskProcessingUnit {
 				LOG.info(message1);
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
 
@@ -428,7 +427,7 @@ public final class TaskProcessingUnit {
 				LOG.info(message1);
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
 			LOG.error("something went wrong", e);
 

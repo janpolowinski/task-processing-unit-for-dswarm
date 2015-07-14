@@ -24,7 +24,6 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
-import java.io.InputStream;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,14 +38,11 @@ import javax.json.Json;
 import javax.json.JsonArray;
 import javax.json.JsonArrayBuilder;
 import javax.json.JsonObject;
-import javax.json.JsonReader;
 import javax.json.JsonValue;
 import javax.json.stream.JsonGenerator;
 
 import de.tu_dortmund.ub.data.util.TPUUtil;
-import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -120,11 +116,12 @@ public class Transform implements Callable<String> {
 			return response;
 		} catch (final Exception e) {
 
-			LOG.error(String.format("[%s][%d] Transforming datamodel '%s' to '%s' failed with a %s", serviceName, cnt,
-					inputDataModelID, outputDataModelID, e.getClass().getSimpleName()), e);
-		}
+			final String message = String.format("[%s][%d] Transforming datamodel '%s' to '%s' failed with a %s", serviceName, cnt,
+					inputDataModelID, outputDataModelID, e.getClass().getSimpleName());
+			LOG.error(message, e);
 
-		return null;
+			throw new RuntimeException(message, e);
+		}
 	}
 
 	/**
@@ -164,6 +161,8 @@ public class Transform implements Callable<String> {
 		jp.write(DswarmBackendStatics.PERSIST_IDENTIFIER, persist);
 		// default for now: true, i.e., no content will be returned
 		jp.write(DswarmBackendStatics.DO_NOT_RETURN_DATA_IDENTIFIER, true);
+		// default for now: true, i.e., if a schema is attached it will utilised (instead of being derived from the data resource)
+		jp.write(DswarmBackendStatics.UTILISE_EXISTING_INPUT_IDENTIFIER, true);
 
 		if (optionalDoIngestOnTheFly.isPresent()) {
 
@@ -258,13 +257,14 @@ public class Transform implements Callable<String> {
 				LOG.info(String.format("[%s][%d]  response headers : \n'%s'", serviceName, cnt, printedResponseHeaders));
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
 
 				switch (statusCode) {
 
 					case 204: {
 
 						LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+
+						EntityUtils.consume(httpResponse.getEntity());
 
 						return "success";
 					}
@@ -282,15 +282,15 @@ public class Transform implements Callable<String> {
 					}
 					default: {
 
-						LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
+						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
-						EntityUtils.consume(httpEntity);
+						final String response = TPUUtil.getResponseMessage(httpResponse);
+
+						throw new Exception("something went wrong at task execution" + response);
 					}
 				}
 			}
 		}
-
-		return null;
 	}
 
 	private String printHeaders(final Header[] headers) {
@@ -352,22 +352,15 @@ public class Transform implements Callable<String> {
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 200: {
 
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String responseJson = writer.toString();
-						writer.flush();
-						writer.close();
+						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, response));
 
-						LOG.debug(String.format("[%s][%d] responseJson : %s", serviceName, cnt, responseJson));
-
-						final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, APIStatics.UTF_8));
-						final JsonObject jsonObject = jsonReader.readObject();
+						final JsonObject jsonObject = TPUUtil.getJsonObject(response);
 
 						final JsonArray mappings = jsonObject.getJsonArray(DswarmBackendStatics.MAPPINGS_IDENTIFIER);
 
@@ -379,14 +372,12 @@ public class Transform implements Callable<String> {
 
 						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 								.getReasonPhrase()));
+
+						throw new Exception("something went wrong at mappings retrieval: " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 
 	private JsonObject getDataModel(final String dataModelID, final String serviceName, final String engineDswarmAPI) throws Exception {
@@ -402,16 +393,13 @@ public class Transform implements Callable<String> {
 			try (CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 200: {
 
-						final InputStream content = httpEntity.getContent();
-
-						final JsonReader jsonReader = Json.createReader(content);
-						final JsonObject jsonObject = jsonReader.readObject();
+						final JsonObject jsonObject = TPUUtil.getJsonObject(response);
 
 						LOG.debug(String.format("[%s][%d] inputDataModel : %s", serviceName, cnt, jsonObject.toString()));
 
@@ -430,14 +418,12 @@ public class Transform implements Callable<String> {
 
 						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
 								.getReasonPhrase()));
+
+						throw new Exception("something went wrong at data model retrieval: " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
-
-		return null;
 	}
 
 	private Collection<String> determineProjectIDs() {

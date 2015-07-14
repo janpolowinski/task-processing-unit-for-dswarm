@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -67,6 +66,7 @@ public final class TPUUtil {
 
 			optionalConfigValue = Optional.empty();
 		}
+
 		return optionalConfigValue;
 	}
 
@@ -83,6 +83,7 @@ public final class TPUUtil {
 
 			optionalConfigValue = Optional.empty();
 		}
+
 		return optionalConfigValue;
 	}
 
@@ -93,10 +94,11 @@ public final class TPUUtil {
 
 		final String persistInFolderString = config.getProperty(TPUStatics.PERSIST_IN_FOLDER_IDENTIFIER);
 		final boolean persistInFolder = Boolean.parseBoolean(persistInFolderString);
+		final HttpEntity entity = httpResponse.getEntity();
 
 		if (persistInFolder) {
 
-			final InputStream responseStream = httpResponse.getEntity().getContent();
+			final InputStream responseStream = entity.getContent();
 			final BufferedInputStream bis = new BufferedInputStream(responseStream, 1024);
 
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
@@ -115,6 +117,8 @@ public final class TPUUtil {
 			bufferedOutputStream.close();
 			outputStream.close();
 		}
+
+		EntityUtils.consume(entity);
 	}
 
 	public static JsonObject doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
@@ -149,7 +153,8 @@ public final class TPUUtil {
 		return initResultJSON;
 	}
 
-	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config, final int cnt)
+	public static String executeInit(final String initResourceFile, final String serviceName, final Integer engineThreads, final Properties config,
+			final int cnt)
 			throws Exception {
 
 		// create job
@@ -180,9 +185,11 @@ public final class TPUUtil {
 				return initResult;
 			}
 
-		} catch (final InterruptedException | ExecutionException e) {
+		} catch (final Exception e) {
 
-			LOG.error("[{]][{}] something went wrong", serviceName, cnt, e);
+			LOG.error("[{]][{}] something went wrong at init part execution", serviceName, cnt, e);
+
+			throw new Exception(e);
 		} finally {
 
 			pool.shutdown();
@@ -213,21 +220,17 @@ public final class TPUUtil {
 			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
 				final int statusCode = httpResponse.getStatusLine().getStatusCode();
-				final HttpEntity httpEntity = httpResponse.getEntity();
 
 				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
 						.getReasonPhrase());
+
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
 				switch (statusCode) {
 
 					case 200: {
 
 						LOG.info(message);
-						final StringWriter writer = new StringWriter();
-						IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
-						final String response = writer.toString();
-						writer.flush();
-						writer.close();
 
 						LOG.info(String.format("[%s] response : '%s'", serviceName, response));
 
@@ -236,13 +239,43 @@ public final class TPUUtil {
 					default: {
 
 						LOG.error(message);
+
+						throw new Exception("something went wrong at schema indices initialisation: " + message + " " + response);
 					}
 				}
-
-				EntityUtils.consume(httpEntity);
 			}
 		}
+	}
 
-		return null;
+	public static JsonObject getJsonObject(final String jsonString) throws IOException {
+
+		final JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(jsonString, APIStatics.UTF_8));
+		final JsonObject jsonObject = jsonReader.readObject();
+
+		jsonReader.close();
+
+		return jsonObject;
+	}
+
+	public static String getResponseMessage(final CloseableHttpResponse httpResponse) throws IOException {
+
+		final HttpEntity httpEntity = httpResponse.getEntity();
+
+		final String response = getResponseMessage(httpEntity);
+
+		EntityUtils.consume(httpEntity);
+
+		return response;
+	}
+
+	public static String getResponseMessage(final HttpEntity httpEntity) throws IOException {
+
+		final StringWriter writer = new StringWriter();
+		IOUtils.copy(httpEntity.getContent(), writer, APIStatics.UTF_8);
+		final String response = writer.toString();
+		writer.flush();
+		writer.close();
+
+		return response;
 	}
 }
