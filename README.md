@@ -152,17 +152,17 @@ engine.dswarm.graph.api=http://example.com/graph/
 You can build the TPU with the following command (only required once, or when TPU code was updated):
 
 ````
-mvn clean package
+mvn clean package -DskipTests
 ````
 
 You can execute your TPU task with the following command:
 
-	$JAVA_HOME/jre/bin/java -cp TaskProcessingUnit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
+	$JAVA_HOME/jre/bin/java -cp taskprocessingunit-1.0-SNAPSHOT-onejar.jar de.tu_dortmund.ub.data.dswarm.TaskProcessingUnit -conf=conf/config.properties
 You need to ensure that at least the D:SWARM backend is running (+ optionally, the data hub and D:SWARM graph extension).  
 
 ## Logging
 
-You can find logs of your TPU task executions in `[TPU HOME]/target/logs`.
+You can find logs of your TPU task executions in `[TPU HOME]/logs`.
 
 ## Example Configuration for On-The-Fly Transform Processing
 

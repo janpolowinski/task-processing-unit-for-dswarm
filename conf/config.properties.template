@@ -6,13 +6,8 @@ project.name=LokSys
 
 # resources
 resource.watchfolder=data/LokSys/resources
-resource.preprocessing=false
 
 configuration.name=/home/jan/git/task-processing-unit-for-dswarm/target/conf/oai-pmh-marc-xml-configuration.json
-
-# preprocessing for xml files
-preprocessing.xslt=xslt/cdata.xsl
-preprocessing.folder=data/tmp
 
 # optional - only necessary, if init part is skipped
 prototype.resourceID=Resource-f2b9e085-5b05-4853-ad82-06ce4fe1952d
@@ -58,9 +53,6 @@ results.persistInDMP=false
 results.persistInFolder=true
 results.folder=data/LokSys/results
 results.writeDMPJson=false
-# rdf format: turtle (default), xml, nquads, jsonld
-results.rdf.format=xml
-results.rdf.graph=http://data.ub.tu-dortmund.de/clossed/LMF/context/crossref
 
 ########################
 # Task Processing Unit #
