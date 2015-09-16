@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -70,8 +69,13 @@ public class TPUTask implements Callable<String> {
 
 			final String result = executeTransformation(inputDataModelID, outputDataModelID, engineThreads, config, serviceName, cnt);
 
-			return String.format("[%s][%d] TPU task execution '%d' result = '%s' for source file '%s' and data model '%s'", serviceName, cnt, cnt, result,
-					watchFolderFile, inputDataModelID);
+			final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
+
+			TPUUtil.cleanUpMetadataRepository(initResultJSON, serviceName, engineDswarmAPI, cnt);
+
+			return String
+					.format("[%s][%d] TPU task execution '%d' result = '%s' for source file '%s' and data model '%s'", serviceName, cnt, cnt, result,
+							watchFolderFile, inputDataModelID);
 		} catch (final Exception e) {
 
 			final String message = String

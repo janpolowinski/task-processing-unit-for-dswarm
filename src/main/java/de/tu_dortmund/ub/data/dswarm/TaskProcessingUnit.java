@@ -50,6 +50,7 @@ import javax.json.JsonObject;
 import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.tuple.Triple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -120,7 +121,7 @@ public final class TaskProcessingUnit {
 		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
 		String[] watchFolderFiles = new File(resourceWatchFolder).list();
 
-		if(watchFolderFiles == null) {
+		if (watchFolderFiles == null) {
 
 			final String message = String
 					.format("could not determine files from watchfolder '%s'; watch folder file list does not exist", resourceWatchFolder);
@@ -130,7 +131,7 @@ public final class TaskProcessingUnit {
 			throw new TPUException(message);
 		}
 
-		if(watchFolderFiles.length == 0) {
+		if (watchFolderFiles.length == 0) {
 
 			final String message = String
 					.format("could not determine files from watchfolder; there are no files in folder '%s'", resourceWatchFolder);
@@ -142,7 +143,8 @@ public final class TaskProcessingUnit {
 
 		Arrays.sort(watchFolderFiles);
 
-		final String filesMessage = String.format("[%s] '%s' files in resource watch folder '%s'", serviceName, watchFolderFiles.length, resourceWatchFolder);
+		final String filesMessage = String
+				.format("[%s] '%s' files in resource watch folder '%s'", serviceName, watchFolderFiles.length, resourceWatchFolder);
 
 		LOG.info(filesMessage);
 		LOG.info("\tfile names: '" + Arrays.toString(watchFolderFiles) + "'");
@@ -249,7 +251,7 @@ public final class TaskProcessingUnit {
 			final Optional<Boolean> optionalDoExportOnTheFly, final Properties config) throws Exception {
 
 		// keys = input data models; values = related data resources
-		final Map<String, String> inputDataModelsAndResources = new HashMap<>();
+		final Map<String, Triple<String, String, String>> inputDataModelsAndResources = new HashMap<>();
 
 		// init
 		if (optionalDoInit.isPresent() && optionalDoInit.get()) {
@@ -280,7 +282,7 @@ public final class TaskProcessingUnit {
 			final String inputDataModelID = config.getProperty(TPUStatics.PROTOTYPE_INPUT_DATA_MODEL_ID_IDENTIFIER);
 			final String resourceID = config.getProperty(TPUStatics.PROTOTYPE_RESOURCE_ID_INDENTIFIER);
 
-			inputDataModelsAndResources.put(inputDataModelID, resourceID);
+			inputDataModelsAndResources.put(inputDataModelID, Triple.of(inputDataModelID, resourceID, null));
 
 			LOG.info("skip init part");
 		}
@@ -294,12 +296,13 @@ public final class TaskProcessingUnit {
 
 			if (!optionalAllowMultipleDataModels.isPresent() || !optionalAllowMultipleDataModels.get()) {
 
-				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
-				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
-				final Map.Entry<String, String> entry = iterator.next();
+				final Set<Map.Entry<String, Triple<String, String, String>>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, Triple<String, String, String>>> iterator = entries.iterator();
+				final Map.Entry<String, Triple<String, String, String>> entry = iterator.next();
 
 				final String inputDataModelID = entry.getKey();
-				final String resourceID = entry.getValue();
+				final Triple<String, String, String> triple = entry.getValue();
+				final String resourceID = triple.getMiddle();
 
 				executeIngests(watchFolderFiles, inputDataModelID, resourceID, projectName, serviceName, engineThreads, config);
 			}
@@ -320,9 +323,9 @@ public final class TaskProcessingUnit {
 
 			if (optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get()) {
 
-				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
+				final Set<Map.Entry<String, Triple<String, String, String>>> entries = inputDataModelsAndResources.entrySet();
 
-				for (final Map.Entry<String, String> entry : entries) {
+				for (final Map.Entry<String, Triple<String, String, String>> entry : entries) {
 
 					final String inputDataModelID = entry.getKey();
 
@@ -331,9 +334,9 @@ public final class TaskProcessingUnit {
 				}
 			} else {
 
-				final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
-				final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
-				final Map.Entry<String, String> entry = iterator.next();
+				final Set<Map.Entry<String, Triple<String, String, String>>> entries = inputDataModelsAndResources.entrySet();
+				final Iterator<Map.Entry<String, Triple<String, String, String>>> iterator = entries.iterator();
+				final Map.Entry<String, Triple<String, String, String>> entry = iterator.next();
 
 				final String inputDataModelID = entry.getKey();
 
@@ -359,9 +362,9 @@ public final class TaskProcessingUnit {
 					exportDataModelID = outputDataModelID;
 				} else {
 
-					final Set<Map.Entry<String, String>> entries = inputDataModelsAndResources.entrySet();
-					final Iterator<Map.Entry<String, String>> iterator = entries.iterator();
-					final Map.Entry<String, String> entry = iterator.next();
+					final Set<Map.Entry<String, Triple<String, String, String>>> entries = inputDataModelsAndResources.entrySet();
+					final Iterator<Map.Entry<String, Triple<String, String, String>>> iterator = entries.iterator();
+					final Map.Entry<String, Triple<String, String, String>> entry = iterator.next();
 
 					exportDataModelID = entry.getKey();
 				}
@@ -371,6 +374,28 @@ public final class TaskProcessingUnit {
 		} else {
 
 			LOG.info("skip export");
+		}
+
+		// clean-up
+		int cnt = 0;
+
+		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
+
+		final Set<Map.Entry<String, Triple<String, String, String>>> entries = inputDataModelsAndResources.entrySet();
+
+		for (final Map.Entry<String, Triple<String, String, String>> entry : entries) {
+
+			final Triple<String, String, String> triple = entry.getValue();
+
+			final String inputDataModelId = triple.getLeft();
+			final String resourceId = triple.getMiddle();
+			final String configurationId = triple.getRight();
+
+			TPUUtil.deleteObject(inputDataModelId, DswarmBackendStatics.DATAMODELS_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+			TPUUtil.deleteObject(resourceId, DswarmBackendStatics.RESOURCES_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+			TPUUtil.deleteObject(configurationId, DswarmBackendStatics.CONFIGURATIONS_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+
+			cnt++;
 		}
 	}
 
@@ -490,14 +515,15 @@ public final class TaskProcessingUnit {
 	}
 
 	private static void doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
-			final Integer engineThreads, final Properties config, final Map<String, String> inputDataModelsAndResources)
+			final Integer engineThreads, final Properties config, final Map<String, Triple<String, String, String>> inputDataModelsAndResources)
 			throws Exception {
 
 		final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, 0);
 
 		final String inputDataModelID = initResultJSON.getString(Init.DATA_MODEL_ID);
 		final String resourceID = initResultJSON.getString(Init.RESOURCE_ID);
+		final String configurationID = initResultJSON.getString(Init.CONFIGURATION_ID);
 
-		inputDataModelsAndResources.put(inputDataModelID, resourceID);
+		inputDataModelsAndResources.put(inputDataModelID, Triple.of(inputDataModelID, resourceID, configurationID));
 	}
 }
