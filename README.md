@@ -71,7 +71,7 @@ prototype.projectID=819f2f6e-98ed-90e2-372e-71a0a1eec786
 # if multiple projects deliver the mappings for the task
 prototype.projectIDs=9d6ec288-f1bf-4f96-78f6-5399e3050125,69664ba5-bbe5-6f35-7a77-47bacf9d3731
 
-# if an existing input should be utilised at input data model creation
+# if an existing input schema should be utilised at input data model creation
 prototype.inputSchemaID=Schema-cb8f4b96-9ab2-4972-88f8-143656199518
 
 # the output data model refers to the output schema as well
@@ -83,6 +83,9 @@ prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
 
 # enables init part (i.e., resource + data model creation)
 init.do=true
+
+# (optionally) enhance input data resources (currently, only for XML)
+init.enhance_data_resource=true
 
 # if disable, task.do_ingest_on_the_fly needs to enabled
 init.data_model.do_ingest=false
