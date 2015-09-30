@@ -74,6 +74,7 @@ public class Init implements Callable<String> {
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
 	public static final String DATA_MODEL_ID            = "data_model_id";
 	public static final String RESOURCE_ID              = "resource_id";
+	public static final String CONFIGURATION_ID              = "configuration_id";
 
 	private final Properties config;
 	private final String     initResourceFile;
@@ -213,6 +214,7 @@ public class Init implements Callable<String> {
 			jp.writeStartObject();
 			jp.write(DATA_MODEL_ID, dataModelID);
 			jp.write(RESOURCE_ID, inputResourceID);
+			jp.write(CONFIGURATION_ID, configurationID);
 			jp.writeEnd();
 
 			jp.flush();

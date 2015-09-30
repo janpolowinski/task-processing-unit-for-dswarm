@@ -28,6 +28,7 @@ import javax.json.JsonReader;
 
 import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.dswarm.APIStatics;
+import de.tu_dortmund.ub.data.dswarm.DswarmBackendStatics;
 import de.tu_dortmund.ub.data.dswarm.Init;
 import de.tu_dortmund.ub.data.dswarm.TPUStatics;
 import org.apache.commons.io.Charsets;
@@ -35,6 +36,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -59,7 +62,7 @@ public final class TPUUtil {
 	public static final String SCHEMA_INDICES_ENDPOINT = "schemaindices";
 	public static final String TEXT_PLAIN_MIMETYPE     = "text/plain";
 	public static final int    MAX_BUFFER_LENGTH       = 10000;
-	public static final String ERROR_MESSAGE_START = "{\"error\":{\"message";
+	public static final String ERROR_MESSAGE_START     = "{\"error\":{\"message";
 
 	public static Optional<Boolean> getBooleanConfigValue(final String configKey, final Properties config) {
 
@@ -145,7 +148,7 @@ public final class TPUUtil {
 		BufferedReader bufferedReader = Files.newBufferedReader(filePath, Charsets.UTF_8);
 		final int readCharacters = bufferedReader.read(buffer, 0, MAX_BUFFER_LENGTH);
 
-		if(readCharacters <= -1) {
+		if (readCharacters <= -1) {
 
 			LOG.debug("couldn't check file for errors; no file content in file '{}'", fileName);
 
@@ -156,7 +159,7 @@ public final class TPUUtil {
 
 		final String bufferString = String.valueOf(buffer);
 
-		if(bufferString.startsWith(ERROR_MESSAGE_START)) {
+		if (bufferString.startsWith(ERROR_MESSAGE_START)) {
 
 			bufferedReader.close();
 
@@ -320,5 +323,80 @@ public final class TPUUtil {
 		writer.close();
 
 		return response;
+	}
+
+	public static void cleanUpMetadataRepository(final JsonObject initResultJSON, final String serviceName, final String engineDswarmAPI,
+			final int cnt) throws Exception {
+
+		LOG.debug("try to clean-up metadata repository from temp entities");
+
+		deleteObject(initResultJSON, Init.DATA_MODEL_ID, DswarmBackendStatics.DATAMODELS_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+		deleteObject(initResultJSON, Init.RESOURCE_ID, DswarmBackendStatics.RESOURCES_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+		deleteObject(initResultJSON, Init.CONFIGURATION_ID, DswarmBackendStatics.CONFIGURATIONS_ENDPOINT, serviceName, engineDswarmAPI, cnt);
+
+		LOG.debug("finished cleaning-up metadata repository from temp entities");
+	}
+
+	private static void deleteObject(final JsonObject initResultJSON, final String identifier, final String objectType, final String serviceName,
+			final String engineDswarmAPI,
+			final int cnt) throws IOException {
+
+		try {
+
+			LOG.debug("try to clean-up metadata repository from temp {}", objectType);
+
+			final String objectId = initResultJSON.getString(identifier);
+
+			deleteObject(objectId, objectType, serviceName, engineDswarmAPI, cnt);
+
+			LOG.debug("finished cleaning-up metadata repository from temp {}", objectType);
+		} catch (final NullPointerException e) {
+
+			LOG.debug("could not find identifier for '{}' in JSON object; cannot remove any '{}'", identifier, objectType);
+		}
+	}
+
+	public static void deleteObject(final String objectId, final String objectType, final String serviceName, final String engineDswarmAPI,
+			final int cnt) throws IOException {
+
+		if(objectId == null) {
+
+			LOG.debug("there's no identifier given; cannot remove any '{}'", objectType);
+
+			return;
+		}
+
+		LOG.debug("try to clean-up metadata repository from temp {}: id = '{}'", objectType, objectId);
+
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+
+			final HttpDelete httpDelete = new HttpDelete(engineDswarmAPI + objectType + APIStatics.SLASH + objectId);
+
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpDelete.getRequestLine()));
+
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpDelete)) {
+
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+
+				final String message = String
+						.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase());
+
+				switch (statusCode) {
+
+					case 204: {
+
+						LOG.info(message);
+
+						LOG.debug("finished cleaning-up metadata repository from temp {}: id = '{}'", objectType, objectId);
+
+						return;
+					}
+					default: {
+
+						LOG.error("something went wrong at metadata repository clean-up: {}", message);
+					}
+				}
+			}
+		}
 	}
 }
