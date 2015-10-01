@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.Properties;
@@ -57,6 +58,8 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.dswarm.xmlenhancer.XMLEnhancer;
+
 /**
  * Init-Task for Task Processing Unit for d:swarm<br/>
  * creates a resource + configuration + data model
@@ -74,7 +77,10 @@ public class Init implements Callable<String> {
 	public static final String CONFIGURATION_IDENTIFIER = "configuration";
 	public static final String DATA_MODEL_ID            = "data_model_id";
 	public static final String RESOURCE_ID              = "resource_id";
-	public static final String CONFIGURATION_ID              = "configuration_id";
+	public static final String CONFIGURATION_ID         = "configuration_id";
+
+	private static final String JAVA_IO_TMPDIR = "java.io.tmpdir";
+	private static final String OS_TEMP_DIR    = System.getProperty(JAVA_IO_TMPDIR);
 
 	private final Properties config;
 	private final String     initResourceFile;
@@ -92,6 +98,7 @@ public class Init implements Callable<String> {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
 		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
+		final Optional<Boolean> optionalEnhanceInputDataResource = TPUUtil.getBooleanConfigValue(TPUStatics.ENHANCE_INPUT_DATA_RESOURCE, config);
 
 		LOG.info(String.format("[%s][%d] Starting 'Init (Task)' ...", serviceName, cnt));
 
@@ -117,11 +124,31 @@ public class Init implements Callable<String> {
 				TPUUtil.initSchemaIndices(serviceName, config);
 			}
 
-			// build a InputDataModel for the resource
-			//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
+			final String configurationFileName = config.getProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER);
+			final String configurationJSONString = readFile(configurationFileName, Charsets.UTF_8);
+			final JsonObject configurationJSON = TPUUtil.getJsonObject(configurationJSONString);
+
+			final String finalInputResourceFile;
+
+			if (optionalEnhanceInputDataResource.isPresent() && Boolean.TRUE.equals(optionalEnhanceInputDataResource.get())) {
+
+				final Optional<String> optionalUpdatedInputResourceFile = enhanceInputDataResource(initResourceFile, configurationJSON);
+
+				if (optionalUpdatedInputResourceFile.isPresent()) {
+
+					finalInputResourceFile = optionalUpdatedInputResourceFile.get();
+				} else {
+
+					finalInputResourceFile = initResourceFile;
+				}
+			} else {
+
+				finalInputResourceFile = initResourceFile;
+			}
+
 			final String name = String.format("resource for project '%s'", initResourceFile);
 			final String description = String.format("'resource does not belong to a project' - case %d", cnt);
-			final String inputResourceJson = uploadFileAndCreateResource(initResourceFile, name, description, serviceName, engineDswarmAPI);
+			final String inputResourceJson = uploadFileAndCreateResource(finalInputResourceFile, name, description, serviceName, engineDswarmAPI);
 
 			if (inputResourceJson == null) {
 
@@ -147,10 +174,9 @@ public class Init implements Callable<String> {
 
 			// TODO: refactor this, so that a configuration only needs to be create once per TPU task
 			// create configuration
-			final String configurationFileName = config.getProperty(TPUStatics.CONFIGURATION_NAME_IDENTIFIER);
-			final String configurationJSONString = createConfiguration(configurationFileName, serviceName, engineDswarmAPI);
+			final String finalConfigurationJSONString = createConfiguration(configurationJSONString, serviceName, engineDswarmAPI);
 
-			if (configurationJSONString == null) {
+			if (finalConfigurationJSONString == null) {
 
 				final String message = "something went wrong at configuration creation";
 
@@ -159,8 +185,8 @@ public class Init implements Callable<String> {
 				throw new RuntimeException(message);
 			}
 
-			final JsonObject configurationJSON = TPUUtil.getJsonObject(configurationJSONString);
-			final String configurationID = configurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
+			final JsonObject finalConfigurationJSON = TPUUtil.getJsonObject(finalConfigurationJSONString);
+			final String configurationID = finalConfigurationJSON.getString(DswarmBackendStatics.UUID_IDENTIFIER);
 			LOG.info(String.format("[%s][%d] configuration id = %s", serviceName, cnt, configurationID));
 
 			if (configurationID == null) {
@@ -178,7 +204,7 @@ public class Init implements Callable<String> {
 			// create the datamodel (will use it's resource)
 			final String dataModelName = String.format("data model %d", cnt);
 			final String dataModelDescription = String.format("data model description %d", cnt);
-			final String dataModelJSONString = createDataModel(inputResourceJSON, configurationJSON, optionalInputSchema, dataModelName,
+			final String dataModelJSONString = createDataModel(inputResourceJSON, finalConfigurationJSON, optionalInputSchema, dataModelName,
 					dataModelDescription, serviceName,
 					engineDswarmAPI, doIngest);
 
@@ -307,17 +333,16 @@ public class Init implements Callable<String> {
 	/**
 	 * creates a configuration from a given configuration JSON
 	 *
-	 * @param filename
+	 * @param configurationJSONString
 	 * @return responseJson
 	 * @throws Exception
 	 */
-	private String createConfiguration(final String filename, final String serviceName,
+	private String createConfiguration(final String configurationJSONString, final String serviceName,
 			final String engineDswarmAPI) throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			final HttpPost httpPost = new HttpPost(engineDswarmAPI + DswarmBackendStatics.CONFIGURATIONS_ENDPOINT);
-			final String configurationJSONString = readFile(filename, Charsets.UTF_8);
 
 			final StringEntity reqEntity = new StringEntity(configurationJSONString,
 					ContentType.create(APIStatics.APPLICATION_JSON_MIMETYPE, Consts.UTF_8));
@@ -497,5 +522,61 @@ public class Init implements Callable<String> {
 		final byte[] encoded = Files.readAllBytes(Paths.get(path));
 
 		return new String(encoded, encoding);
+	}
+
+	private Optional<String> enhanceInputDataResource(final String inputDataResourceFile, final JsonObject configurationJSON) throws Exception {
+
+		final JsonObject parameters = configurationJSON.getJsonObject(DswarmBackendStatics.PARAMETERS_IDENTIFIER);
+
+		if (parameters == null) {
+
+			LOG.debug("could not find parameters in configuration '{}'", configurationJSON.toString());
+
+			return Optional.empty();
+		}
+
+		final String storageType = parameters.getString(DswarmBackendStatics.STORAGE_TYPE_IDENTIFIER);
+
+		if (storageType == null || storageType.trim().isEmpty()) {
+
+			LOG.debug("could not find storage in parameters of configuration '{}'", configurationJSON.toString());
+
+			return Optional.empty();
+		}
+
+		switch (storageType) {
+
+			case DswarmBackendStatics.XML_STORAGE_TYPE:
+			case DswarmBackendStatics.MABXML_STORAGE_TYPE:
+			case DswarmBackendStatics.MARCXML_STORAGE_TYPE:
+			case DswarmBackendStatics.PNX_STORAGE_TYPE:
+			case DswarmBackendStatics.OAI_PMH_DC_ELEMENTS_STORAGE_TYPE:
+			case DswarmBackendStatics.OAI_PMH_DCE_AND_EDM_ELEMENTS_STORAGE_TYPE:
+			case DswarmBackendStatics.OAIPMH_DC_TERMS_STORAGE_TYPE:
+			case DswarmBackendStatics.OAIPMH_MARCXML_STORAGE_TYPE:
+
+				// only XML is supported right now
+
+				break;
+			default:
+
+				LOG.debug("storage type '{}' is currently not supported for input data resource enhancement", storageType);
+
+				return Optional.empty();
+		}
+
+		final Path inputDataResourcePath = Paths.get(inputDataResourceFile);
+
+		final Path inputDataResourceFileNamePath = inputDataResourcePath.getFileName();
+		final String inputDataResourceFileName = inputDataResourceFileNamePath.toString();
+		final String newInputDataResourcePath = OS_TEMP_DIR + File.separator + inputDataResourceFileName;
+
+		LOG.debug("try to enhance input data resource '{}'", inputDataResourceFile);
+
+		XMLEnhancer.enhanceXML(inputDataResourceFile, newInputDataResourcePath);
+
+		LOG.debug("enhanced input data resource for '{}' can be found at ''{}", inputDataResourceFile, newInputDataResourcePath);
+
+		return Optional.of(newInputDataResourcePath);
 	}
 }

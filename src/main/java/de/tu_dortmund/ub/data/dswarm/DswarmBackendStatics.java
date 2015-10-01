@@ -32,4 +32,17 @@ public final class DswarmBackendStatics {
 	public static final String DO_VERSIONING_ON_RESULT_IDENTIFIER = "do_versioning_on_result";
 	public static final String UTILISE_EXISTING_INPUT_IDENTIFIER  = "utilise_existing_input_schema";
 	public static final String DO_DATA_MODEL_INGEST_IDENTIFIER    = "doIngest";
+
+	public static final String RESOURCE_ATTRIBUTES_IDENTIFIER            = "resource_attributes";
+	public static final String PATH_IDENTIFIER                           = "path";
+	public static final String PARAMETERS_IDENTIFIER                     = "parameters";
+	public static final String STORAGE_TYPE_IDENTIFIER                   = "storage_type";
+	public static final String XML_STORAGE_TYPE                          = "xml";
+	public static final String MABXML_STORAGE_TYPE                       = "mabxml";
+	public static final String MARCXML_STORAGE_TYPE                      = "marc21";
+	public static final String PNX_STORAGE_TYPE                          = "pnx";
+	public static final String OAI_PMH_DC_ELEMENTS_STORAGE_TYPE          = "oai-pmh+dce";
+	public static final String OAI_PMH_DCE_AND_EDM_ELEMENTS_STORAGE_TYPE = "oai-pmh+dce+edm";
+	public static final String OAIPMH_DC_TERMS_STORAGE_TYPE              = "oai-pmh+dct";
+	public static final String OAIPMH_MARCXML_STORAGE_TYPE               = "oai-pmh+marcxml";
 }
