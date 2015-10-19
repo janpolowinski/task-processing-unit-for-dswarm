@@ -77,6 +77,9 @@ prototype.inputSchemaID=Schema-cb8f4b96-9ab2-4972-88f8-143656199518
 # the output data model refers to the output schema as well
 prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
 
+# optional - a skip filter that should be applied at Job base (to skip records from processing)
+prototype.skipFilterID=Filter-efada9c4-b48c-4f12-9408-14f5c6ed6ea4
+
 ##########
 # Ingest #
 ##########
