@@ -30,4 +30,5 @@ public final class TPUStatics {
 	public static final String DO_INITIAL_DATA_MODEL_INGEST_IDENTIFIER   = "init.data_model.do_ingest";
 	public static final String ALLOW_MULTIPLE_DATA_MODELS_IDENTIFIER     = "init.multiple_data_models";
 	public static final String ENHANCE_INPUT_DATA_RESOURCE               = "init.enhance_data_resource";
+	public static final String PROTOTYPE_SKIP_FILTER_IDENTIFIER          = "prototype.skipFilterID";
 }

@@ -138,6 +138,7 @@ public class Transform implements Callable<String> {
 		final JsonArray mappings = getMappingsFromProjects(projectIDs, serviceName, engineDswarmAPI);
 		final JsonObject inputDataModel = getDataModel(inputDataModelID, serviceName, engineDswarmAPI);
 		final JsonObject outputDataModel = getDataModel(outputDataModelID, serviceName, engineDswarmAPI);
+		final Optional<JsonObject> optionalSkipFilter = getSkipFilter(serviceName, engineDswarmAPI);
 
 		// erzeuge Task-JSON
 		final String persistString = config.getProperty(TPUStatics.PERSIST_IN_DMP_IDENTIFIER);
@@ -198,6 +199,12 @@ public class Transform implements Callable<String> {
 		jp.writeStartObject(DswarmBackendStatics.JOB_IDENTIFIER);
 		jp.write(DswarmBackendStatics.UUID_IDENTIFIER, UUID.randomUUID().toString());
 		jp.write(DswarmBackendStatics.MAPPINGS_IDENTIFIER, mappings);
+
+		if(optionalSkipFilter.isPresent()) {
+
+			jp.write(DswarmBackendStatics.SKIP_FILTER_IDENTIFIER, optionalSkipFilter.get());
+		}
+
 		jp.writeEnd();
 
 		jp.write(DswarmBackendStatics.INPUT_DATA_MODEL_IDENTIFIER, inputDataModel);
@@ -274,7 +281,8 @@ public class Transform implements Callable<String> {
 							LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
 							// write result to file
-							final String fileName = TPUUtil.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
+							final String fileName = TPUUtil
+									.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
 
 							return "success - exported XML to '" + fileName + "'";
 						}
@@ -419,6 +427,58 @@ public class Transform implements Callable<String> {
 								.getReasonPhrase()));
 
 						throw new Exception("something went wrong at data model retrieval: " + response);
+					}
+				}
+			}
+		}
+	}
+
+	private Optional<JsonObject> getSkipFilter(final String serviceName, final String engineDswarmAPI) throws Exception {
+
+		final Optional<String> optionalSkipFilterId = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_SKIP_FILTER_IDENTIFIER, config);
+
+		if (!optionalSkipFilterId.isPresent()) {
+
+			return Optional.empty();
+		}
+
+		final String skipFilterId = optionalSkipFilterId.get();
+
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+
+			final String uri = engineDswarmAPI + DswarmBackendStatics.FILTERS_ENDPOINT + APIStatics.SLASH + skipFilterId;
+			final HttpGet httpGet = new HttpGet(uri);
+
+			LOG.info(String.format("[%s][%d] request : %s", serviceName, cnt, httpGet.getRequestLine()));
+
+			try (CloseableHttpResponse httpResponse = httpclient.execute(httpGet)) {
+
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
+				final String response = TPUUtil.getResponseMessage(httpResponse);
+
+				switch (statusCode) {
+
+					case 200: {
+
+						final JsonObject jsonObject = TPUUtil.getJsonObject(response);
+
+						if (jsonObject != null) {
+
+							LOG.debug(String.format("[%s][%d] skip filter : %s", serviceName, cnt, jsonObject.toString()));
+						} else {
+
+							LOG.error(String.format("[%s][%d] skip filter : something went wrong at retrieval of skip filter %s", serviceName, cnt,
+									skipFilterId));
+						}
+
+						return Optional.ofNullable(jsonObject);
+					}
+					default: {
+
+						LOG.error(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine()
+								.getReasonPhrase()));
+
+						throw new Exception("something went wrong at skip filter retrieval: " + response);
 					}
 				}
 			}

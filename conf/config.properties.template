@@ -24,6 +24,7 @@ prototype.projectIDs=9d6ec288-f1bf-4f96-78f6-5399e3050125,69664ba5-bbe5-6f35-7a7
 # if an existing input should be utilised at input data model creation
 prototype.inputSchemaID=Schema-cb8f4b96-9ab2-4972-88f8-143656199518
 prototype.outputDataModelID=DataModel-cf998267-392a-4d87-a33a-88dd1bffb016
+prototype.skipFilterID=Filter-efada9c4-b48c-4f12-9408-14f5c6ed6ea4
 
 # enables init part (i.e. resource + data model creation)
 init.do=true
