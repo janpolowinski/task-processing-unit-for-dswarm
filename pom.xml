@@ -1,6 +1,6 @@
 <!--
 
-    Copyright (C) 2013 – 2016 SLUB Dresden & Avantgarde Labs GmbH (<code@dswarm.org>)
+    Copyright (C) 2015 – 2016 Dortmund University Library, SLUB Dresden & Avantgarde Labs GmbH (<code@dswarm.org>)
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -228,8 +228,8 @@
 				<configuration>
 					<header>com/mycila/maven/plugin/license/templates/APACHE-2.txt</header>
 					<properties>
-						<owner>SLUB Dresden &amp; Avantgarde Labs GmbH</owner>
-						<project.inceptionYear>2013 &ndash; 2016</project.inceptionYear>
+						<owner>Dortmund University Library, SLUB Dresden &amp; Avantgarde Labs GmbH</owner>
+						<project.inceptionYear>2015 &ndash; 2016</project.inceptionYear>
 						<email>&lt;code@dswarm.org&gt;</email>
 					</properties>
 					<useDefaultExcludes>true</useDefaultExcludes>
