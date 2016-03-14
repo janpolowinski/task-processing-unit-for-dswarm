@@ -28,7 +28,7 @@ The task processing unit can be configured for various scenarios, e.g.,
 * ```ingest``` (only; persistent in the [data hub](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-hub))
 * ```export``` (only; from data in the data hub)
 * ```ingest``` (persistent), ```transform```, ```export``` (from persistent result)
-* ```on-the-fly transform``` (input data will be ingested (/generated) on-the-fly + export data will be directly returned from the transformation result, without storing it in the data hub)
+* ```on-the-fly transform``` a.k.a. [*Streaming variant*](https://github.com/dswarm/dswarm-documentation/wiki#dswarm-streaming-variant) (input data will be ingested (/generated) on-the-fly + export data will be directly returned from the transformation result, without storing it in the data hub)
 * any combination of the previous scenarios ;)
 
 The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario supports following mime types for export: 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift'. The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can be processed in parallel.
