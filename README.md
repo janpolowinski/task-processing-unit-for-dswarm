@@ -18,7 +18,7 @@ The TPU acts as client by calling the HTTP API of the D:SWARM backend.
 ## TPU Task
 
 A TPU task can consist of three parts, while each part can be optional. These are:
-* ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
+* ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML, JSON or CSV) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
 * ```transform```: transforms data from an input data model via a task (which refers to a [job](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#job)) into an output data model
 * ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g., XML or various RDF serializations
 
@@ -123,6 +123,7 @@ export.do=true
 # the mime type for the export (export on-the-fly or export from the datahub)
 # currently possible mime types are 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift' for export on-the-fly
 # and 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3' for export from the datahub
+# default is 'application/xml'
 export.mime_type=application/xml
 
 ###########
