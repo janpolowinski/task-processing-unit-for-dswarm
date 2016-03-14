@@ -13,25 +13,25 @@
 
 The task processing unit (TPU) is intended to process large amounts of data via [tasks](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#task) that make use of [mappings](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#mapping) that you have prepared and tested with the [D:SWARM backoffice webgui](https://github.com/dswarm/dswarm-documentation/wiki/Overview). So it can act as the production unit for D:SWARM, while the backoffice acts as development and/or testing unit (on smaller amounts of data).
 
-The TPU acts as client by calling the HTTP API of the D:SWARM backend.
+The TPU acts as client by calling the HTTP API of the [D:SWARM backend](https://github.com/dswarm/dswarm) (see also [HTTP API discovery](https://github.com/dswarm/dswarm-documentation/wiki/HTTP-API-discovery)).
 
 ## TPU Task
 
 A TPU task can consist of three parts, while each part can be optional. These are:
 * ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML, JSON or CSV) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
 * ```transform```: transforms data from an input data model via a task (which refers to a [job](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#job)) into an output data model
-* ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g., XML or various RDF serializations
+* ```export```: serializes data from a data model (usually an output data model) into a certain data format, e.g., XML or various RDF serializations (currently, following mime types are supported: 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3')
 
 ## Processing Scenarios
 
 The task processing unit can be configured for various scenarios, e.g.,
 * ```ingest``` (only; persistent in the [data hub](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-hub))
-* ```export``` (only; from data in the data hub (currently, following mime types are supported: 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3'))
+* ```export``` (only; from data in the data hub)
 * ```ingest``` (persistent), ```transform```, ```export``` (from persistent result)
 * ```on-the-fly transform``` (input data will be ingested (/generated) on-the-fly + export data will be directly returned from the transformation result, without storing it in the data hub)
 * any combination of the previous scenarios ;)
 
-The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario supports following mime types for export: 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift'. The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can processed in parallel.
+The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario supports following mime types for export: 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift'. The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can be processed in parallel.
 
 ## Requirements
 
@@ -174,7 +174,7 @@ You need to ensure that at least the D:SWARM backend is running (+ optionally, t
 
 ## Logging
 
-You can find logs of your TPU task executions in `[TPU HOME]/logs`.
+You can (usually) find logs of your TPU task executions in `[TPU HOME]/logs`.
 
 ## Example Configuration for On-The-Fly Transform Processing
 
