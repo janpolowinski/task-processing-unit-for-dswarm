@@ -20,18 +20,18 @@ The TPU acts as client by calling the HTTP API of the D:SWARM backend.
 A TPU task can consist of three parts, while each part can be optional. These are:
 * ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
 * ```transform```: transforms data from an input data model via a task (which refers to a [job](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#job)) into an output data model
-* ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g., XML
+* ```export```: transforms data from a data model (usually an output data model) into a certain data format, e.g., XML or various RDF serializations
 
 ## Processing Scenarios
 
 The task processing unit can be configured for various scenarios, e.g.,
 * ```ingest``` (only; persistent in the [data hub](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-hub))
-* ```export``` (only; from data in the data hub)
+* ```export``` (only; from data in the data hub (currently, following mime types are supported: 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3'))
 * ```ingest``` (persistent), ```transform```, ```export``` (from persistent result)
 * ```on-the-fly transform``` (input data will be ingested (/generated) on-the-fly + export data will be directly returned from the transformation result, without storing it in the data hub)
 * any combination of the previous scenarios ;)
 
-The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario only supports XML export. So, if you would like to have an RDF export of your transformed data, then you need to run the TPU with the parameter for persisting the task execution result in the data hub (the current implementation of RDF export does only work in combination with the data hub). The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can processed in parallel.
+The fastest scenario is ```on-the-fly transform```, since it doesn't store anything in the data hub and does only the pure data processing. So it's recommend for data transformation scenarios, where only the output is important, but not the archiving of the data. Currently, this scenario supports following mime types for export: 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift'. The ```on-the-fly transform``` scenario can easily be parallelized via splitting your input data resource into several parts. Then each part can processed in parallel.
 
 ## Requirements
 
@@ -117,8 +117,13 @@ task.do_export_on_the_fly=true
 # Export #
 ##########
 
-# enables XML export (from the given output data model)
+# enables export from the datahub (from the given output data model)
 export.do=true
+
+# the mime type for the export (export on-the-fly or export from the datahub)
+# currently possible mime types are 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift' for export on-the-fly
+# and 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3' for export from the datahub
+export.mime_type=application/xml
 
 ###########
 # Results #
@@ -188,6 +193,7 @@ ingest.do=false
 transform.do=true
 task.do_ingest_on_the_fly=true
 task.do_export_on_the_fly=true
+export.mime_type=application/xml
 export.do=false
 results.persistInDMP=false
 results.persistInFolder=true

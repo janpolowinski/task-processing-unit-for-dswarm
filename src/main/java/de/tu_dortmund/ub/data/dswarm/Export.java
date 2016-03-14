@@ -39,9 +39,6 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
-import java.util.Properties;
-import java.util.concurrent.Callable;
-
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -50,28 +47,38 @@ import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
+import java.util.Properties;
+import java.util.concurrent.Callable;
+
 /**
  * Export Task for Task Processing Unit for d:swarm
  *
  * @author Jan Polowinski (SLUB Dresden)
  * @version 2015-04-20
- *
  */
 public class Export implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(Export.class);
 
 	public static final String EXPORT_IDENTIFIER = "export";
-	private final String     exportDataModelID;
+	private final String exportDataModelID;
+	private final Optional<String> optionalExportMimeType;
+	private final Optional<String> optionalExportFileExtension;
 	private final Properties config;
 
-	public Export(final String exportDataModelIDArg, final Properties config) {
+	public Export(final String exportDataModelIDArg,
+	              final Optional<String> optionalExportMimeTypeArg,
+	              final Optional<String> optionalExportFileExtensionArg,
+	              final Properties config) {
 
 		exportDataModelID = exportDataModelIDArg;
+		optionalExportMimeType = optionalExportMimeTypeArg;
+		optionalExportFileExtension = optionalExportFileExtensionArg;
 		this.config = config;
 	}
 
-	//    @Override
+	@Override
 	public String call() {
 
 		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
@@ -83,7 +90,7 @@ public class Export implements Callable<String> {
 			TPUUtil.initSchemaIndices(serviceName, config);
 
 			// export and save to results folder
-			exportDataModel(exportDataModelID, serviceName);
+			exportDataModel(exportDataModelID, optionalExportMimeType, optionalExportFileExtension, serviceName);
 
 			return null;
 		} catch (final Exception e) {
@@ -98,22 +105,35 @@ public class Export implements Callable<String> {
 	}
 
 	/**
-	 * export the data model with the given ID as XML
+	 * export the data model with the given ID in the given mime type
 	 *
 	 * @param dataModelID
-	 * @return xml input stream
 	 * @throws Exception
 	 */
-	private void exportDataModel(final String dataModelID, final String serviceName) throws Exception {
+	private void exportDataModel(final String dataModelID,
+	                             final Optional<String> optionalExportMimeType,
+	                             final Optional<String> optionalExportFileExtension,
+	                             final String serviceName) throws Exception {
 
 		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
 			final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
+			final String exportMimeType;
+
+			if (optionalExportMimeType.isPresent()) {
+
+				exportMimeType = optionalExportMimeType.get();
+			} else {
+
+				// application/xml as default mime type
+				exportMimeType = APIStatics.APPLICATION_XML_MIMETYPE;
+			}
+
 			final String uri =
 					engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + dataModelID + APIStatics.SLASH + EXPORT_IDENTIFIER
 							+ APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER + APIStatics.EQUALS
-							+ APIStatics.APPLICATION_XML_MIMETYPE;
+							+ exportMimeType;
 			final HttpGet httpGet = new HttpGet(uri);
 
 			//			httpGet.setHeader(name, value);
@@ -143,7 +163,18 @@ public class Export implements Callable<String> {
 					}
 				}
 
-				TPUUtil.writeResultToFile(httpResponse, config, exportDataModelID);
+				final String exportFileExtension;
+
+				if (optionalExportFileExtension.isPresent()) {
+
+					exportFileExtension = optionalExportFileExtension.get();
+				} else {
+
+					// xml as default file extension
+					exportFileExtension = TaskProcessingUnit.XML_FILE_ENDING;
+				}
+
+				TPUUtil.writeResultToFile(httpResponse, config, exportDataModelID, exportFileExtension);
 			}
 		}
 	}

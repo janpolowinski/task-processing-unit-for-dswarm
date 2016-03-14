@@ -39,23 +39,6 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.UUID;
-import java.util.concurrent.Callable;
-
-import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonArrayBuilder;
-import javax.json.JsonObject;
-import javax.json.JsonValue;
-import javax.json.stream.JsonGenerator;
-
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
@@ -70,12 +53,20 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.json.Json;
+import javax.json.JsonArray;
+import javax.json.JsonArrayBuilder;
+import javax.json.JsonObject;
+import javax.json.stream.JsonGenerator;
+import java.io.StringWriter;
+import java.util.*;
+import java.util.concurrent.Callable;
+
 /**
  * Export Task for Task Processing Unit for d:swarm
  *
  * @author Jan Polowinski (SLUB Dresden)
  * @version 2015-04-20
- *
  */
 public class Transform implements Callable<String> {
 
@@ -83,20 +74,32 @@ public class Transform implements Callable<String> {
 
 	public static final String CHUNKED_TRANSFER_ENCODING = "chunked";
 
-	private final Properties         config;
-	private final String             inputDataModelID;
-	private final String             outputDataModelID;
+	private final Properties config;
+	private final String inputDataModelID;
+	private final String outputDataModelID;
 	private final Collection<String> projectIDs;
-	private final Optional<Boolean>  optionalDoIngestOnTheFly;
-	private final Optional<Boolean>  optionalDoExportOnTheFly;
-	private final int                cnt;
+	private final Optional<Boolean> optionalDoIngestOnTheFly;
+	private final Optional<Boolean> optionalDoExportOnTheFly;
+	private final Optional<String> optionalExportMimeType;
+	private final Optional<String> optionalExportFileExtension;
+	private final int cnt;
 
-	public Transform(final Properties config, final String inputDataModelID, final String outputDataModelID,
-			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final int cnt) {
+	public Transform(final Properties config,
+	                 final String inputDataModelID,
+	                 final String outputDataModelID,
+	                 final Optional<Boolean> optionalDoIngestOnTheFly,
+	                 final Optional<Boolean> optionalDoExportOnTheFly,
+	                 final Optional<String> optionalExportMimeType,
+	                 final Optional<String> optionalExportFileExtension,
+	                 final int cnt) {
 
 		this.config = config;
 		this.optionalDoIngestOnTheFly = optionalDoIngestOnTheFly;
 		this.optionalDoExportOnTheFly = optionalDoExportOnTheFly;
+		this.optionalExportMimeType = optionalExportMimeType;
+		this.optionalExportFileExtension = optionalExportFileExtension;
+
+
 		this.cnt = cnt;
 
 		// init IDs of the prototype project
@@ -125,7 +128,7 @@ public class Transform implements Callable<String> {
 
 			// export and save to results folder
 			final String response = executeTask(inputDataModelID, projectIDs, outputDataModelID, serviceName, engineDswarmAPI,
-					optionalDoIngestOnTheFly, optionalDoExportOnTheFly);
+					optionalDoIngestOnTheFly, optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension);
 			LOG.debug(String.format("[%s][%d] task execution result = '%s'", serviceName, cnt, response));
 
 			return response;
@@ -146,9 +149,15 @@ public class Transform implements Callable<String> {
 	 * @param outputDataModelID
 	 * @return
 	 */
-	private String executeTask(final String inputDataModelID, final Collection<String> projectIDs, final String outputDataModelID,
-			final String serviceName, final String engineDswarmAPI, final Optional<Boolean> optionalDoIngestOnTheFly,
-			final Optional<Boolean> optionalDoExportOnTheFly) throws Exception {
+	private String executeTask(final String inputDataModelID,
+	                           final Collection<String> projectIDs,
+	                           final String outputDataModelID,
+	                           final String serviceName,
+	                           final String engineDswarmAPI,
+	                           final Optional<Boolean> optionalDoIngestOnTheFly,
+	                           final Optional<Boolean> optionalDoExportOnTheFly,
+	                           final Optional<String> optionalExportMimeType,
+	                           final Optional<String> optionalExportFileExtension) throws Exception {
 
 		final JsonArray mappings = getMappingsFromProjects(projectIDs, serviceName, engineDswarmAPI);
 		final JsonObject inputDataModel = getDataModel(inputDataModelID, serviceName, engineDswarmAPI);
@@ -215,7 +224,7 @@ public class Transform implements Callable<String> {
 		jp.write(DswarmBackendStatics.UUID_IDENTIFIER, UUID.randomUUID().toString());
 		jp.write(DswarmBackendStatics.MAPPINGS_IDENTIFIER, mappings);
 
-		if(optionalSkipFilter.isPresent()) {
+		if (optionalSkipFilter.isPresent()) {
 
 			jp.write(DswarmBackendStatics.SKIP_FILTER_IDENTIFIER, optionalSkipFilter.get());
 		}
@@ -251,7 +260,14 @@ public class Transform implements Callable<String> {
 
 			if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
 
-				mimetype = APIStatics.APPLICATION_XML_MIMETYPE;
+				if (optionalExportMimeType.isPresent()) {
+
+					mimetype = optionalExportMimeType.get();
+				} else {
+
+					// default export mime type is XML
+					mimetype = APIStatics.APPLICATION_XML_MIMETYPE;
+				}
 			} else {
 
 				mimetype = APIStatics.APPLICATION_JSON_MIMETYPE;
@@ -295,9 +311,20 @@ public class Transform implements Callable<String> {
 
 							LOG.info(String.format("[%s][%d] %d : %s", serviceName, cnt, statusCode, httpResponse.getStatusLine().getReasonPhrase()));
 
+							final String exportFileExtension;
+
+							if (optionalExportFileExtension.isPresent()) {
+
+								exportFileExtension = optionalExportFileExtension.get();
+							} else {
+
+								// XML as default file ending
+								exportFileExtension = TaskProcessingUnit.XML_FILE_ENDING;
+							}
+
 							// write result to file
 							final String fileName = TPUUtil
-									.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt);
+									.writeResultToFile(httpResponse, config, outputDataModelID + "-" + inputDataModelID + "-" + cnt, exportFileExtension);
 
 							return "success - exported XML to '" + fileName + "'";
 						}
@@ -348,10 +375,7 @@ public class Transform implements Callable<String> {
 
 			LOG.info(String.format("[%s][%d] retrieved '%d' mappings from project '%s'", serviceName, cnt, projectMappings.size(), projectID));
 
-			for (final JsonValue projectMapping : projectMappings) {
-
-				mappingArrayBuilder.add(projectMapping);
-			}
+			projectMappings.forEach(mappingArrayBuilder::add);
 		}
 
 		final JsonArray mappingsArray = mappingArrayBuilder.build();

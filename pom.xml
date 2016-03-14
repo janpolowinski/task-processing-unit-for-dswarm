@@ -53,6 +53,7 @@
 		<version.httpclient>4.5.1</version.httpclient>
 		<version.httpcore>4.4.4</version.httpcore>
 		<version.httpmime>4.5.1</version.httpmime>
+		<version.dswarm.common>0.0.3.1-SNAPSHOT</version.dswarm.common>
 	</properties>
 
 	<prerequisites>
@@ -135,6 +136,13 @@
 			<groupId>org.apache.httpcomponents</groupId>
 			<artifactId>httpmime</artifactId>
 			<version>${version.httpmime}</version>
+		</dependency>
+
+		<!-- d:swarm commons -->
+		<dependency>
+			<groupId>org.dswarm</groupId>
+			<artifactId>common</artifactId>
+			<version>${version.dswarm.common}</version>
 		</dependency>
 
 		<!-- testing dependencies -->

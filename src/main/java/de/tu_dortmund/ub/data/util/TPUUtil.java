@@ -15,32 +15,6 @@
  */
 package de.tu_dortmund.ub.data.util;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.json.Json;
-import javax.json.JsonObject;
-import javax.json.JsonReader;
-
 import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.dswarm.APIStatics;
 import de.tu_dortmund.ub.data.dswarm.DswarmBackendStatics;
@@ -52,7 +26,6 @@ import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -61,6 +34,16 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * @author tgaengler
@@ -71,7 +54,6 @@ public final class TPUUtil {
 
 	public static final String EXPORT_FILE_NAME_PREFIX = "export-of-";
 	public static final String DOT                     = ".";
-	public static final String XML_FILE_ENDING         = "xml";
 	public static final String UTF_8                   = "UTF-8";
 	public static final String MAINTAIN_ENDPOINT       = "maintain";
 	public static final String SCHEMA_INDICES_ENDPOINT = "schemaindices";
@@ -113,8 +95,10 @@ public final class TPUUtil {
 		return optionalConfigValue;
 	}
 
-	public static String writeResultToFile(final CloseableHttpResponse httpResponse, final Properties config, final String exportDataModelID)
-			throws IOException, TPUException {
+	public static String writeResultToFile(final CloseableHttpResponse httpResponse,
+	                                       final Properties config,
+	                                       final String exportDataModelID,
+	                                       final String fileEnding) throws IOException, TPUException {
 
 		LOG.info("try to write result to file");
 
@@ -130,7 +114,7 @@ public final class TPUUtil {
 			final BufferedInputStream bis = new BufferedInputStream(responseStream, 1024);
 
 			final String resultsFolder = config.getProperty(TPUStatics.RESULTS_FOLDER_IDENTIFIER);
-			fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + XML_FILE_ENDING;
+			fileName = resultsFolder + File.separatorChar + EXPORT_FILE_NAME_PREFIX + exportDataModelID + DOT + fileEnding;
 
 			LOG.info(String.format("start writing result to file '%s'", fileName));
 
