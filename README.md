@@ -20,7 +20,7 @@ The TPU acts as client by calling the HTTP API of the [D:SWARM backend](https://
 A TPU task can consist of three parts, while each part can be optional. These are:
 * ```ingest```: transforms data from a [data resource](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-resource) (of a certain data format, e.g., XML, JSON or CSV) with the help of a [configuration](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#configuration) into a [data model](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#data-model) that makes use of a [generic data format](https://github.com/dswarm/dswarm-documentation/wiki/Graph-Data-Model) (so that it can be consumed by the [transformation engine](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#transformation-engine) of D:SWARM)
 * ```transform```: transforms data from an input data model via a task (which refers to a [job](https://github.com/dswarm/dswarm-documentation/wiki/Glossary#job)) into an output data model
-* ```export```: serializes data from a data model (usually an output data model) into a certain data format, e.g., XML or various RDF serializations (currently, following mime types are supported: 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3')
+* ```export```: serializes data from a data model (usually an output data model) in the data hub into a certain data format, e.g., XML or various RDF serializations (currently, following mime types are supported: 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3')
 
 ## Processing Scenarios
 
@@ -117,12 +117,12 @@ task.do_export_on_the_fly=true
 # Export #
 ##########
 
-# enables export from the datahub (from the given output data model)
+# enables export from the data hub (from the given output data model)
 export.do=true
 
-# the mime type for the export (export on-the-fly or export from the datahub)
+# the mime type for the export (export on-the-fly or export from the data hub)
 # currently possible mime types are 'application/xml', 'text/turtle', 'application/trig', 'application/trix', 'application/n-quads', 'application/n-triples' and 'application/rdf+thrift' for export on-the-fly
-# and 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3' for export from the datahub
+# and 'application/xml', 'text/turtle', 'application/trig', 'application/n-quads', 'application/rdf+xml' and 'text/n3' for export from the data hub
 # default is 'application/xml'
 export.mime_type=application/xml
 
