@@ -1,12 +1,12 @@
 /**
  * Copyright (C) 2015 – 2016 Dortmund University Library, SLUB Dresden & Avantgarde Labs GmbH (<code@dswarm.org>)
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,49 +39,34 @@ SOFTWARE.
 
 package de.tu_dortmund.ub.data.dswarm;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.json.JsonObject;
-
 import de.tu_dortmund.ub.data.TPUException;
 import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.tuple.Triple;
+import org.dswarm.common.DSWARMException;
+import org.dswarm.common.MediaType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.json.JsonObject;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Task Processing Unit for d:swarm
  *
  * @author Dipl.-Math. Hans-Georg Becker, M.L.I.S. (UB Dortmund)
  * @version 2015-04-20
- *
  */
 public final class TaskProcessingUnit {
 
 	private static final Logger LOG = LoggerFactory.getLogger(TaskProcessingUnit.class);
 
 	private static final String DEFAULT_CONFIG_PROPERTIES_FILE_NAME = "config.properties";
-	private static final String DEFAULT_CONF_FOLDER_NAME            = "conf";
+	private static final String DEFAULT_CONF_FOLDER_NAME = "conf";
+
+	public static final String XML_FILE_ENDING = "xml";
 
 	public static void main(final String[] args) throws Exception {
 
@@ -177,16 +162,47 @@ public final class TaskProcessingUnit {
 		final Optional<Boolean> optionalDoExportOnTheFly = TPUUtil.getBooleanConfigValue(TPUStatics.DO_EXPORT_ON_THE_FLY_IDENTIFIER, config);
 		final Optional<String> optionalOutputDataModelID = TPUUtil.getStringConfigValue(TPUStatics.PROTOTYPE_OUTPUT_DATA_MODEL_ID_IDENTIFIER, config);
 
+		final Optional<String> optionalExportMimeType;
+
+		if (optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get()) {
+
+			optionalExportMimeType = TPUUtil.getStringConfigValue(TPUStatics.EXPORT_MIME_TYPE, config);
+		} else {
+
+			optionalExportMimeType = Optional.empty();
+		}
+
+		final Optional<String> optionalExportFileExtension;
+
+		if (optionalExportMimeType.isPresent()) {
+
+			String exportFileExtension;
+			try {
+
+				final MediaType mediaType = MediaType.getMediaTypeByName(optionalExportMimeType.get());
+				exportFileExtension = mediaType.getFileExtension();
+			} catch (final DSWARMException e) {
+
+				// xml as default file extension
+				exportFileExtension = XML_FILE_ENDING;
+			}
+
+			optionalExportFileExtension = Optional.ofNullable(exportFileExtension);
+		} else {
+
+			optionalExportFileExtension = Optional.empty();
+		}
+
 		final String result;
 
 		if (goMultiThreaded(optionalDoInit, optionalDoTransformations, optionalAllowMultipleDataModels, optionalDoIngestOnTheFly,
 				optionalDoExportOnTheFly)) {
 
-			result = executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, engineThreads, serviceName, config);
+			result = executeTPUTask(watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID, optionalExportMimeType, optionalExportFileExtension, engineThreads, serviceName, config);
 		} else {
 
 			executeTPUPartsOnDemand(optionalDoInit, optionalAllowMultipleDataModels, watchFolderFiles, resourceWatchFolder, optionalOutputDataModelID,
-					serviceName, engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, config);
+					serviceName, engineThreads, optionalDoTransformations, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension, config);
 
 			result = "[no result available]";
 		}
@@ -201,8 +217,8 @@ public final class TaskProcessingUnit {
 	}
 
 	private static boolean goMultiThreaded(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalDoTransformations,
-			final Optional<Boolean> optionalAllowMultipleDataModels, final Optional<Boolean> optionalDoIngestOnTheFly,
-			final Optional<Boolean> optionalDoExportOnTheFly) {
+	                                       final Optional<Boolean> optionalAllowMultipleDataModels, final Optional<Boolean> optionalDoIngestOnTheFly,
+	                                       final Optional<Boolean> optionalDoExportOnTheFly) {
 
 		return optionalDoInit.isPresent() && optionalDoInit.get() &&
 				optionalAllowMultipleDataModels.isPresent() && optionalAllowMultipleDataModels.get() &&
@@ -211,9 +227,14 @@ public final class TaskProcessingUnit {
 				optionalDoExportOnTheFly.isPresent() && optionalDoExportOnTheFly.get();
 	}
 
-	private static String executeTPUTask(final String[] watchFolderFiles, final String resourceWatchFolder,
-			final Optional<String> optionalOutputDataModelID, final Integer engineThreads,
-			final String serviceName, final Properties config) throws Exception {
+	private static String executeTPUTask(final String[] watchFolderFiles,
+	                                     final String resourceWatchFolder,
+	                                     final Optional<String> optionalOutputDataModelID,
+	                                     final Optional<String> optionalExportMimeType,
+	                                     final Optional<String> optionalExportFileExtension,
+	                                     final Integer engineThreads,
+	                                     final String serviceName,
+	                                     final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
@@ -224,7 +245,7 @@ public final class TaskProcessingUnit {
 
 			LOG.info("[{}][{}] do TPU task execution '{}' for file '{}'", serviceName, cnt, cnt, watchFolderFile);
 
-			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, optionalOutputDataModelID, serviceName, cnt));
+			transforms.add(new TPUTask(config, watchFolderFile, resourceWatchFolder, optionalOutputDataModelID, optionalExportMimeType, optionalExportFileExtension, serviceName, cnt));
 
 			cnt++;
 		}
@@ -260,10 +281,19 @@ public final class TaskProcessingUnit {
 		}
 	}
 
-	private static void executeTPUPartsOnDemand(final Optional<Boolean> optionalDoInit, final Optional<Boolean> optionalAllowMultipleDataModels,
-			String[] watchFolderFiles, final String resourceWatchFolder, final Optional<String> optionalOutputDataModelID, final String serviceName,
-			final Integer engineThreads, final Optional<Boolean> optionalDoTransformations, final Optional<Boolean> optionalDoIngestOnTheFly,
-			final Optional<Boolean> optionalDoExportOnTheFly, final Properties config) throws Exception {
+	private static void executeTPUPartsOnDemand(final Optional<Boolean> optionalDoInit,
+	                                            final Optional<Boolean> optionalAllowMultipleDataModels,
+	                                            String[] watchFolderFiles,
+	                                            final String resourceWatchFolder,
+	                                            final Optional<String> optionalOutputDataModelID,
+	                                            final String serviceName,
+	                                            final Integer engineThreads,
+	                                            final Optional<Boolean> optionalDoTransformations,
+	                                            final Optional<Boolean> optionalDoIngestOnTheFly,
+	                                            final Optional<Boolean> optionalDoExportOnTheFly,
+	                                            final Optional<String> optionalExportMimeType,
+	                                            final Optional<String> optionalExportFileExtension,
+	                                            final Properties config) throws Exception {
 
 		// keys = input data models; values = related data resources
 		final Map<String, Triple<String, String, String>> inputDataModelsAndResources = new HashMap<>();
@@ -344,7 +374,7 @@ public final class TaskProcessingUnit {
 
 					final String inputDataModelID = entry.getKey();
 
-					executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads,
+					executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension, engineThreads,
 							serviceName, config);
 				}
 			} else {
@@ -355,7 +385,7 @@ public final class TaskProcessingUnit {
 
 				final String inputDataModelID = entry.getKey();
 
-				executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, engineThreads, serviceName,
+				executeTransform(inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension, engineThreads, serviceName,
 						config);
 			}
 		} else {
@@ -384,7 +414,7 @@ public final class TaskProcessingUnit {
 					exportDataModelID = entry.getKey();
 				}
 
-				executeExport(exportDataModelID, engineThreads, serviceName, config);
+				executeExport(exportDataModelID, optionalExportMimeType, optionalExportFileExtension, engineThreads, serviceName, config);
 			}
 		} else {
 
@@ -415,7 +445,7 @@ public final class TaskProcessingUnit {
 	}
 
 	private static void executeIngests(final String[] files, final String dataModelID, final String resourceID, final String projectName,
-			final String serviceName, final Integer engineThreads, final Properties config) throws Exception {
+	                                   final String serviceName, final Integer engineThreads, final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> filesToPush = new LinkedList<>();
@@ -431,106 +461,50 @@ public final class TaskProcessingUnit {
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
 				new LinkedBlockingQueue<>());
 
-		try {
-
-			final List<Future<String>> futureList = pool.invokeAll(filesToPush);
-
-			for (final Future<String> f : futureList) {
-
-				final String message = f.get();
-
-				final String message1 = String.format("[%s] %s", serviceName, message);
-
-				LOG.info(message1);
-			}
-
-		} catch (final Exception e) {
-
-			LOG.error("something went wrong", e);
-
-			throw e;
-
-		} finally {
-
-			pool.shutdown();
-		}
+		execute(serviceName, filesToPush, pool);
 	}
 
-	private static void executeTransform(final String inputDataModelID, final String outputDataModelID,
-			final Optional<Boolean> optionalDoIngestOnTheFly, final Optional<Boolean> optionalDoExportOnTheFly, final Integer engineThreads,
-			final String serviceName, final Properties config) throws Exception {
+
+	private static void executeTransform(final String inputDataModelID,
+	                                     final String outputDataModelID,
+	                                     final Optional<Boolean> optionalDoIngestOnTheFly,
+	                                     final Optional<Boolean> optionalDoExportOnTheFly,
+	                                     final Optional<String> optionalExportMimeType,
+	                                     final Optional<String> optionalExportFileExtension,
+	                                     final Integer engineThreads,
+	                                     final String serviceName,
+	                                     final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> transforms = new LinkedList<>();
-		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, 0));
+		transforms.add(new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly, optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension, 0));
 
 		// work on jobs
-		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
-				new LinkedBlockingQueue<>());
+		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS, new LinkedBlockingQueue<>());
 
-		try {
-
-			final List<Future<String>> futureList = pool.invokeAll(transforms);
-
-			for (final Future<String> f : futureList) {
-
-				final String message = f.get();
-
-				final String message1 = String.format("[%s] %s", serviceName, message);
-
-				LOG.info(message1);
-			}
-
-		} catch (final Exception e) {
-
-			LOG.error("something went wrong", e);
-
-			throw e;
-
-		} finally {
-
-			pool.shutdown();
-		}
+		execute(serviceName, transforms, pool);
 	}
 
-	private static void executeExport(final String exportDataModelID, final Integer engineThreads, final String serviceName, final Properties config)
-			throws Exception {
+	private static void executeExport(final String exportDataModelID,
+	                                  final Optional<String> optionalExportMimeType,
+	                                  final Optional<String> optionalExportFileExtension,
+	                                  final Integer engineThreads,
+	                                  final String serviceName,
+	                                  final Properties config) throws Exception {
 
 		// create job list
 		final LinkedList<Callable<String>> exports = new LinkedList<>();
-		exports.add(new Export(exportDataModelID, config));
+		exports.add(new Export(exportDataModelID, optionalExportMimeType, optionalExportFileExtension, config));
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
 				new LinkedBlockingQueue<>());
 
-		try {
-
-			final List<Future<String>> futureList = pool.invokeAll(exports);
-
-			for (final Future<String> f : futureList) {
-
-				final String message = f.get();
-
-				final String message1 = String.format("[%s] %s", serviceName, message);
-
-				LOG.info(message1);
-			}
-
-		} catch (final Exception e) {
-
-			LOG.error("something went wrong", e);
-
-			throw e;
-
-		} finally {
-
-			pool.shutdown();
-		}
+		execute(serviceName, exports, pool);
 	}
 
 	private static void doInit(final String resourceWatchFolder, final String initResourceFileName, final String serviceName,
-			final Integer engineThreads, final Properties config, final Map<String, Triple<String, String, String>> inputDataModelsAndResources)
+	                           final Integer engineThreads, final Properties config, final Map<String, Triple<String, String, String>> inputDataModelsAndResources)
 			throws Exception {
 
 		final JsonObject initResultJSON = TPUUtil.doInit(resourceWatchFolder, initResourceFileName, serviceName, engineThreads, config, 0);
@@ -540,5 +514,34 @@ public final class TaskProcessingUnit {
 		final String configurationID = initResultJSON.getString(Init.CONFIGURATION_ID);
 
 		inputDataModelsAndResources.put(inputDataModelID, Triple.of(inputDataModelID, resourceID, configurationID));
+	}
+
+	private static void execute(final String serviceName,
+	                            final LinkedList<Callable<String>> threads,
+	                            final ThreadPoolExecutor pool) throws InterruptedException, java.util.concurrent.ExecutionException {
+
+		try {
+
+			final List<Future<String>> futureList = pool.invokeAll(threads);
+
+			for (final Future<String> f : futureList) {
+
+				final String message = f.get();
+
+				final String message1 = String.format("[%s] %s", serviceName, message);
+
+				LOG.info(message1);
+			}
+
+		} catch (final Exception e) {
+
+			LOG.error("something went wrong", e);
+
+			throw e;
+
+		} finally {
+
+			pool.shutdown();
+		}
 	}
 }

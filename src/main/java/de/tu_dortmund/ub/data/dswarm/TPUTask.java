@@ -40,26 +40,36 @@ public class TPUTask implements Callable<String> {
 
 	private static final Logger LOG = LoggerFactory.getLogger(TPUTask.class);
 
-	private final Properties       config;
-	private final String           watchFolderFile;
-	private final String           resourceWatchFolder;
+	private final Properties config;
+	private final String watchFolderFile;
+	private final String resourceWatchFolder;
 	private final Optional<String> optionalOutputDataModelID;
-	private final String           serviceName;
-	private final int              cnt;
+	private final Optional<String> optionalExportMimeType;
+	private final Optional<String> optionalExportFileExtension;
+	private final String serviceName;
+	private final int cnt;
 
-	public TPUTask(final Properties config, final String watchFolderFile, final String resourceWatchFolder,
-			final Optional<String> optionalOutputDataModelID,
-			final String serviceName, final int cnt) {
+	public TPUTask(final Properties config,
+	               final String watchFolderFile,
+	               final String resourceWatchFolder,
+	               final Optional<String> optionalOutputDataModelID,
+	               final Optional<String> optionalExportMimeType,
+	               final Optional<String> optionalExportFileExtension,
+	               final String serviceName,
+	               final int cnt) {
 
 		this.config = config;
 		this.watchFolderFile = watchFolderFile;
 		this.resourceWatchFolder = resourceWatchFolder;
 		this.optionalOutputDataModelID = optionalOutputDataModelID;
+		this.optionalExportMimeType = optionalExportMimeType;
+		this.optionalExportFileExtension = optionalExportFileExtension;
 		this.serviceName = serviceName;
 		this.cnt = cnt;
 	}
 
-	@Override public String call() throws Exception {
+	@Override
+	public String call() throws Exception {
 
 		try {
 
@@ -82,7 +92,7 @@ public class TPUTask implements Callable<String> {
 				outputDataModelID = inputDataModelID;
 			}
 
-			final String result = executeTransformation(inputDataModelID, outputDataModelID, engineThreads, config, serviceName, cnt);
+			final String result = executeTransformation(inputDataModelID, outputDataModelID, optionalExportMimeType, optionalExportFileExtension, engineThreads, config, serviceName, cnt);
 
 			final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
@@ -100,15 +110,19 @@ public class TPUTask implements Callable<String> {
 		}
 	}
 
-	private static String executeTransformation(final String inputDataModelID, final String outputDataModelID, final Integer engineThreads,
-			final Properties config,
-			final String serviceName, final int cnt) throws Exception {
+	private static String executeTransformation(final String inputDataModelID,
+	                                            final String outputDataModelID,
+	                                            final Optional<String> optionalExportMimeType,
+	                                            final Optional<String> optionalExportFileExtension,
+	                                            final Integer engineThreads,
+	                                            final Properties config,
+	                                            final String serviceName, final int cnt) throws Exception {
 
 		// create job
 		final Optional<Boolean> optionalDoExportOnTheFly = Optional.of(Boolean.TRUE);
 		final Optional<Boolean> optionalDoIngestOnTheFly = Optional.of(Boolean.TRUE);
 		final Callable<String> transformTask = new Transform(config, inputDataModelID, outputDataModelID, optionalDoIngestOnTheFly,
-				optionalDoExportOnTheFly, cnt);
+				optionalDoExportOnTheFly, optionalExportMimeType, optionalExportFileExtension, cnt);
 
 		// work on jobs
 		final ThreadPoolExecutor pool = new ThreadPoolExecutor(engineThreads, engineThreads, 0L, TimeUnit.SECONDS,
