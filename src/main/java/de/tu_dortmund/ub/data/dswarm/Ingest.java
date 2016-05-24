@@ -1,3 +1,18 @@
+/**
+ * Copyright (C) 2015 – 2016 Dortmund University Library, SLUB Dresden & Avantgarde Labs GmbH (<code@dswarm.org>)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 /*
 The MIT License (MIT)
 
@@ -25,19 +40,16 @@ SOFTWARE.
 package de.tu_dortmund.ub.data.dswarm;
 
 import java.io.File;
-import java.io.StringWriter;
 import java.util.Properties;
 import java.util.concurrent.Callable;
 
 import javax.json.Json;
-import javax.json.JsonArray;
-import javax.json.JsonObject;
 import javax.json.JsonReader;
 
+import de.tu_dortmund.ub.data.util.TPUUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
@@ -46,9 +58,8 @@ import org.apache.http.entity.mime.content.FileBody;
 import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Ingest-Task for Task Processing Unit for d:swarm
@@ -60,256 +71,205 @@ import org.apache.log4j.PropertyConfigurator;
  */
 public class Ingest implements Callable<String> {
 
-    private Properties config = null;
-    private Logger logger = null;
-
-    private String resource;
-    private int cnt;
-
-    public Ingest(Properties config, Logger logger, String resource, int cnt) {
-
-        this.config = config;
-        this.logger = logger;
-        this.resource = resource;
-        this.cnt = cnt;
-    }
-
-//    @Override
-    public String call() {
-
-        // init logger
-        PropertyConfigurator.configure(config.getProperty("service.log4j-conf"));
-
-        logger.info("[" + config.getProperty("service.name") + "] " + "Starting 'Ingest (Task)' ...");
-
-        // init IDs of the prototype project
-        String dataModelID = config.getProperty("prototype.dataModelID");
-//        String projectID = config.getProperty("prototype.projectID");
-//        String outputDataModelID = config.getProperty("prototype.outputDataModelID"); // Internal Data Model BiboDocument
-//      String updateResourceID = config.getProperty("prototype.resourceID"); // the resource ID to update for each uploaded file
-        // use the projects resource as the update-resource for now:
-        String updateResourceID = null; try {updateResourceID = getProjectResourceID(dataModelID);} catch (Exception e1) {e1.printStackTrace();}
-
-        // init process values
-        String inputResourceID = null;
-        String message = null;
-
-        try {
-            // build a InputDataModel for the resource
-//            String inputResourceJson = uploadFileToDSwarm(resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-            String inputResourceJson = uploadFileAndUpdateResource(updateResourceID, resource, "resource for project '" + resource, config.getProperty("project.name") + "' - case " + cnt);
-            JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, "UTF-8"));
-            inputResourceID = jsonReader.readObject().getString("uuid");
-            logger.info("[" + config.getProperty("service.name") + "] inputResourceID = " + inputResourceID);
-
-            if (inputResourceID != null) {
+	private static final Logger LOG = LoggerFactory.getLogger(Ingest.class);
+
+	public static final String DATA_ENDPOINT                  = "data";
+	public static final String FILE_IDENTIFIER                = "file";
+	public static final String DELTA_UPDATE_FORMAT_IDENTIFIER = "delta";
+	public static final String AMBERSENT                      = "&";
+	public static final String ENABLE_VERSIONING_IDENTIFIER   = "enableVersioning";
+	public static final String FALSE                          = "false";
+	private final Properties config;
 
-                if (updateResourceID != null) {
+	private final String resource;
+	private final String dataModelID;
+	private final String resourceID;
+	private final String projectName;
+	private final int    cnt;
 
-	            	// update the datamodel (will use it's (update) resource)
-	            	updateDataModel(dataModelID);
-	
-	                // we don't need to transform after each ingest of a slice of records,
-	            	// so transform and export will be done separately
-	            	 logger.info("[" + config.getProperty("service.name") + "] " + "(Note: Only ingest, but no transformation or export done.)");
-                }
-            }
-            
-        // no need to clean up resources or datamodels anymore
-            
-        }
-        catch (Exception e) {
+	public Ingest(final Properties config, final String resource, final String dataModelID, final String resourceID,
+			final String projectName, final int cnt) {
 
-            logger.error("[" + config.getProperty("service.name") + "] Processing resource '" + resource + "' failed with a " + e.getClass().getSimpleName());
-            e.printStackTrace();
-        }
+		this.config = config;
+		this.resource = resource;
+		this.dataModelID = dataModelID;
+		this.resourceID = resourceID;
+		this.projectName = projectName;
+		this.cnt = cnt;
+	}
 
-        return message;
-    }
+	//    @Override
+	public String call() {
 
-    /**
-     * update the datamodel with the given ID
-     *
-     * @param inputDataModelID
-     * @return
-     * @throws Exception
-     */
-    private String updateDataModel(String inputDataModelID) throws Exception {
+		final String serviceName = config.getProperty(TPUStatics.SERVICE_NAME_IDENTIFIER);
+		final String engineDswarmAPI = config.getProperty(TPUStatics.ENGINE_DSWARM_API_IDENTIFIER);
 
-        CloseableHttpClient httpclient = HttpClients.createDefault();
-        CloseableHttpResponse httpResponse;
+		LOG.info(String.format("[%s] Starting 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
-        try {
-            // Update the existing input Data Model (we are simply using the example data model here ... TODO !)
-            HttpPost httpPost = new HttpPost(config.getProperty("engine.dswarm.api") + "datamodels/" + inputDataModelID + "/data");
+		final String dataModelID = this.dataModelID;
+		final String updateResourceID = resourceID;
 
-            logger.info("[" + config.getProperty("service.name") + "] inputDataModelID : " + inputDataModelID);
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPost.getRequestLine());
+		try {
+			// build a InputDataModel for the resource
+			final String name = String.format("resource for project '%s'", resource);
+			final String description = String.format("'%s' - case %d", projectName, cnt);
+			final String inputResourceJson = uploadFileAndUpdateResource(updateResourceID, resource, name,
+					description, serviceName, engineDswarmAPI);
+			final JsonReader jsonReader;
 
-            httpResponse = httpclient.execute(httpPost);
+			if (inputResourceJson == null) {
 
-            try {
+				LOG.error("something went wrong at resource update");
 
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
+				return null;
+			}
 
-                switch (statusCode) {
+			jsonReader = Json.createReader(IOUtils.toInputStream(inputResourceJson, APIStatics.UTF_8));
+			final String inputResourceID = jsonReader.readObject().getString(DswarmBackendStatics.UUID_IDENTIFIER);
+			LOG.info(String.format("[%s] inputResourceID = %s", serviceName, inputResourceID));
 
-                    case 200: {
+			if (inputResourceID != null) {
 
-                        logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                       
-                        break;
-                    }
-                    default: {
+				// update the datamodel (will use it's (update) resource)
+				updateDataModelContent(dataModelID, serviceName, engineDswarmAPI);
 
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
-            } finally {
-                httpResponse.close();
-            }
-        } finally {
-            httpclient.close();
-        }
+				// we don't need to transform after each ingest of a slice of records,
+				// so transform and export will be done separately
+				LOG.info(String.format("[%s] (Note: Only ingest, but no transformation or export done.)", serviceName));
+			}
 
-        return inputDataModelID;
-    }
+			// no need to clean up resources or datamodels anymore
 
-    /**
-     * get the resource id of the resource for the data model for the the prototype project
-     *
-     * @param dataModelID
-     * @return resourceID
-     * @throws Exception
-     */
-    private String getProjectResourceID(String dataModelID) throws Exception {
+			LOG.info(String.format("[%s] Finished 'Ingest (Task)' no. '%d' ...", serviceName, cnt));
 
-        String resourceID = null;
+			return null;
+		} catch (final Exception e) {
 
-        CloseableHttpClient httpclient = HttpClients.createDefault();
+			final String message = String.format("[%s] Processing resource '%s' failed with a %s", serviceName, resource,
+					e.getClass().getSimpleName());
 
-        try {
+			LOG.error(message, e);
 
-            // Hole Mappings aus dem Projekt mit 'projectID'
-            HttpGet httpGet = new HttpGet(config.getProperty("engine.dswarm.api") + "datamodels/" + dataModelID);
+			throw new RuntimeException(message, e);
+		}
+	}
 
-            CloseableHttpResponse httpResponse = httpclient.execute(httpGet);
+	/**
+	 * update the datamodel with the given ID
+	 *
+	 * @param inputDataModelID
+	 * @return
+	 * @throws Exception
+	 */
+	private String updateDataModelContent(final String inputDataModelID, final String serviceName, final String engineDswarmAPI) throws Exception {
 
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpGet.getRequestLine());
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
+			// Update the existing input Data Model (we are simply using the example data model here ... TODO !)
+			// note: format=delta query parameter must be set to ensure that existing records won't be deprecated in the datahub
+			// note: enableVersioning=false to speed up ingest (however this requires unique resources)
+			final String uri = engineDswarmAPI + DswarmBackendStatics.DATAMODELS_ENDPOINT + APIStatics.SLASH + inputDataModelID + APIStatics.SLASH
+					+ DATA_ENDPOINT + APIStatics.QUESTION_MARK + DswarmBackendStatics.FORMAT_IDENTIFIER
+					+ APIStatics.EQUALS + DELTA_UPDATE_FORMAT_IDENTIFIER + AMBERSENT + ENABLE_VERSIONING_IDENTIFIER + APIStatics.EQUALS + FALSE;
+			final HttpPost httpPost = new HttpPost(uri);
 
-            try {
+			LOG.info(String.format("[%s] inputDataModelID : %s", serviceName, inputDataModelID));
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPost.getRequestLine()));
 
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
-                HttpEntity httpEntity = httpResponse.getEntity();
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPost)) {
 
-                switch (statusCode) {
+				int statusCode = httpResponse.getStatusLine().getStatusCode();
 
-                    case 200: {
+				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						.getReasonPhrase());
 
-                        StringWriter writer = new StringWriter();
-                        IOUtils.copy(httpEntity.getContent(), writer, "UTF-8");
-                        String responseJson = writer.toString();
+				switch (statusCode) {
 
-                        logger.info("[" + config.getProperty("service.name") + "] responseJson : " + responseJson);
+					case 200: {
 
-                        JsonReader jsonReader = Json.createReader(IOUtils.toInputStream(responseJson, "UTF-8"));
-                        JsonObject jsonObject = jsonReader.readObject();
-                        JsonArray resources = jsonObject.getJsonObject("configuration").getJsonArray("resources");
+						LOG.info(message);
 
-                        resourceID = resources.getJsonObject(0).getJsonString("uuid").getString();
+						break;
+					}
+					default: {
 
-                        logger.info("[" + config.getProperty("service.name") + "] resourceID : " + resourceID);
+						LOG.error(message);
 
-                        break;
-                    }
-                    default: {
+						final String response = TPUUtil.getResponseMessage(httpResponse);
 
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
+						throw new Exception("something went wrong at data model export: " + message + " " + response);
+					}
+				}
+			}
+		}
 
-                EntityUtils.consume(httpEntity);
-            } finally {
-                httpResponse.close();
-            }
+		return inputDataModelID;
+	}
 
-        } finally {
-            httpclient.close();
-        }
+	/**
+	 * upload a file and update an existing resource with it
+	 *
+	 * @param resourceUUID
+	 * @param filename
+	 * @param name
+	 * @param description
+	 * @return responseJson
+	 * @throws Exception
+	 */
+	private String uploadFileAndUpdateResource(final String resourceUUID, final String filename, final String name, final String description,
+			final String serviceName, final String engineDswarmAPI) throws Exception {
 
-        return resourceID;
-    }
+		if (null == resourceUUID)
+			throw new Exception("ID of the resource to update was null.");
 
-    /**
-     * upload a file and update an existing resource with it
-     *
-     * @param resourceUUID
-     * @param filename
-     * @param name
-     * @param description
-     * @return responseJson
-     * @throws Exception
-     */
-    private String uploadFileAndUpdateResource(String resourceUUID, String filename, String name, String description) throws Exception {
+		final String resourceWatchFolder = config.getProperty(TPUStatics.RESOURCE_WATCHFOLDER_IDENTIFIER);
+		final String completeFileName = resourceWatchFolder + File.separatorChar + filename;
 
-    	if (null == resourceUUID) throw new Exception("ID of the resource to update was null.");
-    	
-        String responseJson = null;
+		try (final CloseableHttpClient httpclient = HttpClients.createDefault()) {
 
-        String file = config.getProperty("resource.watchfolder") + File.separatorChar +  filename;
+			final HttpPut httpPut = new HttpPut(engineDswarmAPI + DswarmBackendStatics.RESOURCES_ENDPOINT + APIStatics.SLASH + resourceUUID);
 
-        CloseableHttpClient httpclient = HttpClients.createDefault();
+			final File file1 = new File(completeFileName);
+			final FileBody fileBody = new FileBody(file1);
+			final StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
+			final StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
 
-        try {
-            HttpPut httpPut = new HttpPut(config.getProperty("engine.dswarm.api") + "resources/" + resourceUUID);
+			final HttpEntity reqEntity = MultipartEntityBuilder.create()
+					.addPart(DswarmBackendStatics.NAME_IDENTIFIER, stringBodyForName)
+					.addPart(DswarmBackendStatics.DESCRIPTION_IDENTIFIER, stringBodyForDescription)
+					.addPart(FILE_IDENTIFIER, fileBody)
+					.build();
 
-            FileBody fileBody = new FileBody(new File(file));
-            StringBody stringBodyForName = new StringBody(name, ContentType.TEXT_PLAIN);
-            StringBody stringBodyForDescription = new StringBody(description, ContentType.TEXT_PLAIN);
+			httpPut.setEntity(reqEntity);
 
-            HttpEntity reqEntity = MultipartEntityBuilder.create()
-                    .addPart("file", fileBody)
-                    .addPart("name", stringBodyForName)
-                    .addPart("description", stringBodyForDescription)
-                    .build();
+			LOG.info(String.format("[%s] request : %s", serviceName, httpPut.getRequestLine()));
 
-            httpPut.setEntity(reqEntity);
+			try (final CloseableHttpResponse httpResponse = httpclient.execute(httpPut)) {
 
-            logger.info("[" + config.getProperty("service.name") + "] " + "request : " + httpPut.getRequestLine());
+				final int statusCode = httpResponse.getStatusLine().getStatusCode();
 
-            CloseableHttpResponse httpResponse = httpclient.execute(httpPut);
+				final String message = String.format("[%s] %d : %s", serviceName, statusCode, httpResponse.getStatusLine()
+						.getReasonPhrase());
 
-            try {
-                int statusCode = httpResponse.getStatusLine().getStatusCode();
-                HttpEntity httpEntity = httpResponse.getEntity();
+				final String response = TPUUtil.getResponseMessage(httpResponse);
 
-                switch (statusCode) {
+				switch (statusCode) {
 
-                    case 200: {
+					case 200: {
 
-                        logger.info("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                        StringWriter writer = new StringWriter();
-                        IOUtils.copy(httpEntity.getContent(), writer, "UTF-8");
-                        responseJson = writer.toString();
+						LOG.info(message);
 
-                        logger.info("[" + config.getProperty("service.name") + "] responseJson : " + responseJson);
+						LOG.debug(String.format("[%s] responseJson : %s", serviceName, response));
 
-                        break;
-                    }
-                    default: {
+						return response;
+					}
+					default: {
 
-                        logger.error("[" + config.getProperty("service.name") + "] " + statusCode + " : " + httpResponse.getStatusLine().getReasonPhrase());
-                    }
-                }
+						LOG.error(message);
 
-                EntityUtils.consume(httpEntity);
-            } finally {
-                httpResponse.close();
-            }
-        } finally {
-            httpclient.close();
-        }
-
-        return responseJson;
-    }
+						throw new Exception("something went wrong at data model export: " + message + " " + response);
+					}
+				}
+			}
+		}
+	}
 }
